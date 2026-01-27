@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дешифратор</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0f0c29;
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .controls {
+            border-bottom: 2px solid #333;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            color: #00ff88;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ff88;
+        }
+
+        .upload-area {
+            border: 3px dashed #00ff88;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(0, 255, 136, 0.05);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: #00ff99;
+        }
+
+        .upload-area h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #1a1a2e;
+            color: #00ff88;
+            border: 2px solid #333;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 20px;
+            resize: vertical;
+        }
+
+        button {
+            background: linear-gradient(90deg, #00ff88, #00cc66);
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button.secondary {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+            border-top: 2px solid #333;
+            padding-top: 20px;
+        }
+
+        .data-section {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .section-title {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            font-size: 1.5em;
+        }
+
+        .data-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2a3e;
+        }
+
+        .data-row:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            color: #8899aa;
+            font-weight: bold;
+        }
+
+        .data-value {
+            color: #fff;
+            word-break: break-all;
+        }
+
+        .data-value.ip {
+            color: #ff9966;
+        }
+
+        .data-value.coords {
+            color: #66ffcc;
+        }
+
+        .data-value.warning {
+            color: #ff6666;
+        }
+
+        .map-link {
+            color: #66aaff;
+            text-decoration: none;
+        }
+
+        .map-link:hover {
+            text-decoration: underline;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-box {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1em;
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            color: #8899aa;
+            font-size: 0.9em;
+        }
+
+        .json-viewer {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 500px;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #00ff88;
+        }
+
+        pre {
+            white-space: pre-wrap;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: #2a2a3e;
+            border: none;
+            color: #8899aa;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+        }
+
+        .tab.active {
+            background: #00ff88;
+            color: #000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="upload-area" id="dropArea">
+            <h3>ЗАГРУЗИТЕ ДАННЫЕ</h3>
+            <p>Перетащите сюда JSON файл вставьте текст ниже</p>
+            <input type="file" id="fileInput" accept=".json,.txt" style="display: none;">
+        </div>
+
+        <textarea id="jsonInput" placeholder="Вставьте JSON данные сюда..."></textarea>
+
+        <div class="controls">
+            <div>
+                <button onclick="decodeData()">РАСШИФРОВКА</button>
+                <button class="secondary" onclick="clearAll()">ОЧИСТИТЬ</button>
+                <button class="secondary" onclick="exportReport()">ЭКСПОРТ ОТЧЕТА</button>
+            </div>
+
+            <div class="tabs" id="tabs">
+                <button class="tab active" onclick="switchTab('stats')">СТАТИСТИКА</button>
+                <button class="tab" onclick="switchTab('details')">ДЕТАЛИ</button>
+                <button class="tab" onclick="switchTab('raw')">RAW JSON</button>
+                <button class="tab" onclick="switchTab('map')">КАРТА</button>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <div id="statsTab" class="tab-content">
+                <div class="stats" id="stats"></div>
+            </div>
+
+            <div id="detailsTab" class="tab-content" style="display: none;">
+                <div id="details"></div>
+            </div>
+
+            <div id="rawTab" class="tab-content" style="display: none;">
+                <div class="json-viewer">
+                    <pre id="rawJson"></pre>
+                </div>
+            </div>
+
+            <div id="mapTab" class="tab-content" style="display: none;">
+                <div id="mapContainer" style="height: 500px; background: #1a1a2e; border-radius: 8px; padding: 20px;">
+                    <p>📍 Карта загрузится при наличии координат</p>
+                    <div id="map" style="height: 100%;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const jsonInput = document.getElementById('jsonInput');
+        const results = document.getElementById('results');
+        const tabs = document.querySelectorAll('.tab');
+
+        dropArea.addEventListener('click', () => fileInput.click());
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropArea.style.background = 'rgba(0, 255, 136, 0.15)';
+            dropArea.style.borderColor = '#00ff99';
+        }
+
+        function unhighlight() {
+            dropArea.style.background = '';
+            dropArea.style.borderColor = '';
+        }
+
+        dropArea.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            const file = files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                jsonInput.value = e.target.result;
+                decodeData();
+            };
+
+            reader.readAsText(file);
+        }
+
+        function decodeData() {
+            try {
+                const input = jsonInput.value.trim();
+                if (!input) {
+                    alert('Вставьте JSON данные!');
+                    return;
+                }
+
+                let jsonData = extractJsonFromEmail(input);
+
+                const data = JSON.parse(jsonData);
+
+                displayResults(data);
+                results.style.display = 'block';
+
+                results.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                alert('Ошибка парсинга JSON: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        function extractJsonFromEmail(text) {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return jsonMatch[0];
+            }
+
+            if (text.startsWith('{')) {
+                return text;
+            }
+
+            const collectedDataMatch = text.match(/"collected_data"\s*:\s*"([^"]+)"/);
+            if (collectedDataMatch) {
+                return JSON.parse(`{"collected_data": "${collectedDataMatch[1]}"}`).collected_data;
+            }
+
+            throw new Error('JSON не найден в тексте');
+        }
+
+        function displayResults(data) {
+            displayStats(data);
+            displayDetails(data);
+            displayRawJson(data);
+            displayMap(data);
+        }
+
+        function displayStats(data) {
+            const statsContainer = document.getElementById('stats');
+
+            const stats = [
+                {
+                    label: 'IP АДРЕС',
+                    value: data.location?.ipBased?.ip ?
+                        `<span title="Полный IP">${data.location.ipBased.ip}</span>` :
+                        'Не определен',
+                    color: '#ff9966'
+                },
+                {
+                    label: 'ГЕОЛОКАЦИЯ',
+                    value: data.capabilities?.apis?.geolocation ? '✅ Доступна' : '❌ Не доступна',
+                    color: data.capabilities?.apis?.geolocation ? '#00ff88' : '#ff6666'
+                },
+                {
+                    label: 'ТОЧНОСТЬ',
+                    value: getGeoAccuracySimple(data),
+                    color: getGeoAccuracyColorSimple(data)
+                },
+                {
+                    label: 'БРАУЗЕР',
+                    value: `${data.browser?.name || ''} ${data.browser?.version ? 'v' + data.browser.version : ''}`.trim(),
+                    color: '#00ff88'
+                },
+                {
+                    label: 'ОС',
+                    value: data.browser?.platform || 'Не определен',
+                    color: '#667eea'
+                },
+                {
+                    label: 'ТИП УСТРОЙСТВА',
+                    value: getDeviceType(data),
+                    color: getDeviceColor(data)
+                },
+                {
+                    label: 'ПЕРЕКЛЮЧЕНИЙ',
+                    value: data.projectData?.switchCount || '0',
+                    color: '#ff66aa'
+                },
+                {
+                    label: 'ЧАСОВОЙ ПОЯС',
+                    value: data.system?.time?.timezone ?
+                        data.system.time.timezone.replace('_', ' ') : 'Не определен',
+                    color: '#ffcc00'
+                },
+                {
+                    label: 'ЗАДЕРЖКА',
+                    value: data.network?.rtt ? `${data.network.rtt} ms` : 'Не известна',
+                    color: data.network?.rtt < 100 ? '#00ff88' :
+                        data.network?.rtt < 300 ? '#ffcc00' : '#ff6666'
+                },
+                {
+                    label: 'ЯЗЫК/ЯЗЫКИ',
+                    value: data.browser?.languages?.length ?
+                        `${data.browser.language} + ${data.browser.languages.length - 1}` :
+                        data.browser?.language || 'Не определен',
+                    color: '#aa66ff'
+                }
+            ];
+
+            statsContainer.innerHTML = stats.map(stat => `
+            <div class="stat-box">
+                <div class="stat-value" style="color: ${stat.color}">${stat.value}</div>
+                <div class="stat-label">${stat.label}</div>
+            </div>
+            `).join('');
+        }
+
+        function displayDetails(data) {
+            const detailsContainer = document.getElementById('details');
+
+            const sections = [
+                {
+                    title: 'МЕТА-ИНФОРМАЦИЯ',
+                    data: [
+                        ['Время сбора', formatDate(data.meta?.collectedAt)],
+                        ['Источник', data.meta?.source || 'Не определен'],
+                        ['Проект', data.projectData?.project || 'СЕТЬ'],
+                        ['Триггер активации', data.projectData?.activationTrigger || 'Неизвестно']
+                    ]
+                },
+                {
+                    title: 'БРАУЗЕР',
+                    data: [
+                        ['Браузер', `${data.browser?.name || ''} ${data.browser?.version || ''}`],
+                        ['Версия', data.browser?.version || 'Не определена'],
+                        ['User Agent', `<small>${data.browser?.userAgent?.substring(0, 80)}...</small>`],
+                        ['Язык', data.browser?.language || 'Не определен'],
+                        ['Поддерживаемые языки', data.browser?.languages?.join(', ') || 'Не определены'],
+                        ['Платформа', data.browser?.platform || 'Не определен'],
+                        ['Куки', data.browser?.cookieEnabled ? '<span style="color:#00ff88">● Включены</span>' : '<span style="color:#ff6666">● Выключены</span>']
+                    ]
+                },
+                {
+                    title: 'СИСТЕМА',
+                    data: [
+                        ['Разрешение, px', `${data.system?.screen?.width || 0} × ${data.system?.screen?.height || 0}`],
+                        ['Цветность', `${data.system?.screen?.colorDepth || 0} бит`],
+                        ['Пиксельное соотношение', data.system?.window?.devicePixelRatio || '1'],
+                        ['Ядра CPU', data.system?.hardware?.hardwareConcurrency || 'Не определено'],
+                        ['Память', data.system?.hardware?.deviceMemory ? `${data.system.hardware.deviceMemory} GB` : 'Не определено'],
+                        ['Часовой пояс', data.system?.time?.timezone || 'Не определен']
+                    ]
+                },
+                {
+                    title: 'МЕСТОПОЛОЖЕНИЕ',
+                    data: [
+                        ['IP адрес', `<span class="data-value ip">${data.location?.ipBased?.ip || 'Не определен'}</span>`],
+                        ['Страна', data.location?.ipBased?.country_name || 'Не определена'],
+                        ['Город', data.location?.ipBased?.city || 'Не определен'],
+                        ['Провайдер', data.location?.ipBased?.org || 'Не определен'],
+                        ['Точные координаты', getPreciseLocation(data)]
+                    ]
+                },
+                {
+                    title: 'СЕТЬ',
+                    data: [
+                        ['Статус', data.network?.online ? '<span style="color:#00ff88">● Онлайн</span>' : '<span style="color:#ff6666">● Оффлайн</span>'],
+                        ['Тип соединения', data.network?.connectionType || 'Не определен'],
+                        ['Эффективный тип', data.network?.effectiveType || 'Не определен'],
+                        ['Скорость', data.network?.downlink ? `${data.network.downlink} Mbps` : 'Не известна'],
+                        ['Задержка', data.network?.rtt ? `${data.network.rtt} ms` : 'Не известна'],
+                        ['Экономия трафика', data.network?.saveData ? '<span style="color:#ff9966">● Включена</span>' : '<span style="color:#8899aa">● Выключена</span>']
+                    ]
+                },
+                {
+                    title: 'ВОЗМОЖНОСТИ',
+                    data: [
+                        ['Геолокация', formatBoolean(data.capabilities?.apis?.geolocation, 'GPS доступен', 'GPS не доступен')],
+                        ['Камера/Микрофон', formatBoolean(data.capabilities?.apis?.mediaDevices, 'Есть доступ', 'Нет доступа')],
+                        ['Уведомления', formatBoolean(data.capabilities?.apis?.notifications, 'Поддерживаются', 'Не поддерживаются')],
+                        ['Буфер обмена', formatBoolean(data.capabilities?.apis?.clipboard, 'Доступен', 'Не доступен')],
+                        ['WebGL', formatBoolean(data.capabilities?.apis?.webGL, 'Поддерживается <small>(3D графика)</small>', 'Не поддерживается')],
+                        ['Service Workers', formatBoolean(data.capabilities?.apis?.serviceWorker, 'Доступны <small>(оффлайн-режим)</small>', 'Не доступны')]
+                    ]
+                },
+                {
+                    title: 'ДОПОЛНИТЕЛЬНО',
+                    data: [
+                        ['Куки', formatBoolean(data.capabilities?.storage?.cookies, 'Поддерживаются', 'Не поддерживаются')],
+                        ['LocalStorage', formatBoolean(data.capabilities?.storage?.localStorage, 'Доступно', 'Не доступно')],
+                        ['SessionStorage', formatBoolean(data.capabilities?.storage?.sessionStorage, 'Доступно', 'Не доступно')],
+                        ['IndexedDB', formatBoolean(data.capabilities?.storage?.indexedDB, 'Доступна <small>(база данных)</small>', 'Не доступна')],
+                        ['MIME типы', data.additional?.mimeTypes ? `${data.additional.mimeTypes} типов <small>(поддерживаемых файлов)</small>` : 'Не определено'],
+                        ['Плагины', data.additional?.plugins?.length ? `${data.additional.plugins.length} установлено` : 'Нет плагинов']
+                    ]
+                }
+            ];
+
+            detailsContainer.innerHTML = sections.map(section => `
+                <div class="data-section">
+                    <div class="section-title">
+                        <span>${section.title}</span>
+                    </div>
+                    ${section.data.map(([label, value]) => `
+                        <div class="data-row">
+                            <div class="data-label">${label}</div>
+                            <div class="data-value">${value}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+
+        function displayRawJson(data) {
+            document.getElementById('rawJson').textContent =
+                JSON.stringify(data, null, 2);
+        }
+
+        function displayMap(data) {
+            const mapContainer = document.getElementById('mapContainer');
+            const mapDiv = document.getElementById('map');
+
+            if (data.location?.precise?.latitude && data.location?.precise?.longitude) {
+                const lat = data.location.precise.latitude;
+                const lon = data.location.precise.longitude;
+                const accuracy = data.location.precise.accuracy || 'Неизвестно';
+
+                mapContainer.innerHTML = `
+                    <div style="margin-bottom: 15px;">
+                        <strong>Координаты:</strong> ${lat}, ${lon}<br>
+                        <strong>Точность:</strong> ${accuracy}<br>
+                        <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}&zoom=16" 
+                           target="_blank" class="map-link">
+                            🔗 Открыть в OpenStreetMap
+                        </a> | 
+                        <a href="https://maps.google.com/?q=${lat},${lon}" 
+                           target="_blank" class="map-link">
+                            🔗 Открыть в Google Maps
+                        </a>
+                    </div>
+                    <iframe 
+                        width="100%" 
+                        height="450" 
+                        frameborder="0" 
+                        scrolling="no" 
+                        marginheight="0" 
+                        marginwidth="0" 
+                        src="https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.01}%2C${lat - 0.01}%2C${lon + 0.01}%2C${lat + 0.01}&layer=mapnik&marker=${lat}%2C${lon}">
+                    </iframe>
+                `;
+            } else if (data.location?.ipBased?.latitude && data.location?.ipBased?.longitude) {
+                const lat = data.location.ipBased.latitude;
+                const lon = data.location.ipBased.longitude;
+
+                mapContainer.innerHTML = `
+                    <div style="margin-bottom: 15px;">
+                        <strong>Примерные координаты по IP:</strong> ${lat}, ${lon}<br>
+                        <strong>Точность:</strong> Низкая (по IP)<br>
+                        <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}&zoom=12" 
+                           target="_blank" class="map-link">
+                            🔗 Открыть в OpenStreetMap
+                        </a>
+                    </div>
+                    <iframe 
+                        width="100%" 
+                        height="450" 
+                        frameborder="0" 
+                        scrolling="no" 
+                        marginheight="0" 
+                        marginwidth="0" 
+                        src="https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.05}%2C${lat - 0.05}%2C${lon + 0.05}%2C${lat + 0.05}&layer=mapnik&marker=${lat}%2C${lon}">
+                    </iframe>
+                `;
+            } else {
+                mapContainer.innerHTML = `
+                    <div style="text-align: center; padding: 50px;">
+                        <p style="color: #8899aa; font-size: 1.2em;">
+                            🗺️ Геолокационные данные отсутствуют<br>
+                            <small>Для отображения карты нужны координаты</small>
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        function formatDate(isoString) {
+            if (!isoString) return 'Не определено';
+            return new Date(isoString).toLocaleString('ru-RU');
+        }
+
+        function formatBoolean(value, trueText, falseText) {
+            if (value === true || value === 'true') {
+                return `<span style="color:#00ff88">${trueText}</span>`;
+            } else if (value === false || value === 'false') {
+                return `<span style="color:#ff6666">${falseText}</span>`;
+            }
+            return `<span style="color:#8899aa">Не определено</span>`;
+        }
+
+        function getDeviceType(data) {
+            const screen = data.system?.screen;
+            if (!screen || !screen.width) return 'Не определено';
+
+            const width = screen.width;
+            if (width < 768) return 'Мобильное';
+            if (width < 992) return 'Планшет';
+            if (width < 1200) return 'Ноутбук';
+            return 'Десктоп';
+        }
+
+        function getDeviceColor(data) {
+            const width = data.system?.screen?.width;
+            if (!width) return '#8899aa';
+
+            if (width < 768) return '#ff66aa';
+            if (width < 1024) return '#ff9966';
+            if (width < 1440) return '#667eea';
+            if (width < 2560) return '#00ff88';
+            return '#ffcc00';
+        }
+
+        function getGeoAccuracySimple(data) {
+            if (data.location?.precise?.latitude) {
+                const acc = data.location.precise.accuracy || '';
+                if (acc.includes('метр')) {
+                    const meters = parseInt(acc) || 1000;
+                    if (meters < 100) return 'Точная';
+                    if (meters < 500) return 'Хорошая';
+                }
+                return 'Приблизительная';
+            }
+
+            if (data.location?.ipBased?.country_name) {
+                return 'По IP';
+            }
+
+            if (data.location?.ipBased?.ip) {
+                return 'Только IP';
+            }
+
+            return 'Нет данных';
+        }
+
+        function getGeoAccuracyColorSimple(data) {
+            const acc = getGeoAccuracySimple(data);
+            if (acc.includes('Точная')) return '#00ff88';
+            if (acc.includes('Хорошая')) return '#66ffcc';
+            if (acc.includes('Приблизительная')) return '#ffcc00';
+            if (acc.includes('По IP')) return '#ff9966';
+            if (acc.includes('Только IP')) return '#8899aa';
+            return '#ff6666';
+        }
+
+        function getLocationInfo(data) {
+            if (data.location?.precise?.latitude) {
+                return `
+            <div style="color:#66ffcc">
+                <strong>Точные координаты:</strong><br>
+                ${data.location.precise.latitude}, ${data.location.precise.longitude}<br>
+                <small>Точность: ${data.location.precise.accuracy}</small>
+            </div>
+        `;
+            } else if (data.location?.ipBased?.country_name) {
+                return `
+            <div style="color:#ff9966">
+                <strong>По IP:</strong><br>
+                ${data.location.ipBased.country_name || ''}${data.location.ipBased.city ? ', ' + data.location.ipBased.city : ''}<br>
+                <small>${data.location.ipBased.org || 'Провайдер не определен'}</small>
+            </div>
+        `;
+            }
+            return '<span style="color:#ff6666">Не доступно</span>';
+        }
+
+        function getPreciseLocation(data) {
+            if (data.location?.precise?.latitude) {
+                const lat = data.location.precise.latitude;
+                const lon = data.location.precise.longitude;
+                const acc = data.location.precise.accuracy || 'Неизвестно';
+                return `
+                    <span class="data-value coords">${lat}, ${lon}</span><br>
+                    <small>Точность: ${acc}</small><br>
+                    <a href="https://maps.google.com/?q=${lat},${lon}" target="_blank" class="map-link">
+                        🔗 Показать на карте
+                    </a>
+                `;
+            }
+            return '<span class="data-value warning">Не доступно</span>';
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.style.display = 'none';
+            });
+
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.getElementById(tabName + 'Tab').style.display = 'block';
+
+            event.target.classList.add('active');
+        }
+
+        function loadSample() {
+            const sampleData = {
+                "meta": {
+                    "collectedAt": "2024-01-15T12:30:45.123Z",
+                    "source": "https://example.com",
+                    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.0.0.0",
+                    "platform": "Win32",
+                    "language": "ru-RU"
+                },
+                "location": {
+                    "ipBased": {
+                        "ip": "109.126.176.154",
+                        "country_name": "Russia",
+                        "city": "Moscow",
+                        "org": "Some ISP"
+                    },
+                    "precise": {
+                        "latitude": 55.7558,
+                        "longitude": 37.6173,
+                        "accuracy": "122 метров"
+                    }
+                },
+                "projectData": {
+                    "switchCount": 5,
+                    "project": "СЕТЬ",
+                    "activationTrigger": "dark_theme_switch_limit"
+                }
+            };
+
+            jsonInput.value = JSON.stringify(sampleData, null, 2);
+        }
+
+        function clearAll() {
+            jsonInput.value = '';
+            results.style.display = 'none';
+            fileInput.value = '';
+        }
+
+        function exportReport() {
+            try {
+                const data = JSON.parse(extractJsonFromEmail(jsonInput.value));
+                const report = generateReport(data);
+
+                const blob = new Blob([report], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `отчет-${Date.now()}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                alert('Ошибка экспорта: ' + error.message);
+            }
+        }
+
+        function generateReport(data) {
+            return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Отчет</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h1 { color: #333; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .data-row { display: flex; margin: 5px 0; }
+        .label { font-weight: bold; width: 200px; }
+        .value { flex: 1; }
+    </style>
+</head>
+<body>
+    <h1>📊 Отчет</h1>
+    <p><strong>Дата создания:</strong> ${new Date().toLocaleString('ru-RU')}</p>
+    
+    <div class="section">
+        <h2>📋 Основная информация</h2>
+        <div class="data-row"><div class="label">Время сбора:</div><div class="value">${formatDate(data.meta?.collectedAt)}</div></div>
+        <div class="data-row"><div class="label">IP адрес:</div><div class="value">${data.location?.ipBased?.ip || 'Не определен'}</div></div>
+        <div class="data-row"><div class="label">Браузер:</div><div class="value">${data.browser?.name || 'Не определен'}</div></div>
+    </div>
+    
+    <div class="section">
+        <h2>📍 Геолокация</h2>
+        <div class="data-row"><div class="label">Страна:</div><div class="value">${data.location?.ipBased?.country_name || 'Не определена'}</div></div>
+        <div class="data-row"><div class="label">Город:</div><div class="value">${data.location?.ipBased?.city || 'Не определен'}</div></div>
+        <div class="data-row"><div class="label">Координаты:</div><div class="value">${getPreciseLocation(data)}</div></div>
+    </div>
+    
+    <div class="section">
+        <h2>💻 Системная информация</h2>
+        <div class="data-row"><div class="label">Экран:</div><div class="value">${data.system?.screen?.width || 0} × ${data.system?.screen?.height || 0}</div></div>
+        <div class="data-row"><div class="label">ОС:</div><div class="value">${data.browser?.platform || 'Не определена'}</div></div>
+    </div>
+    
+    <div class="section">
+        <h2>📄 Полные данные</h2>
+        <pre>${JSON.stringify(data, null, 2)}</pre>
+    </div>
+</body>
+</html>`;
+        }
+
+        jsonInput.addEventListener('input', () => {
+            if (jsonInput.value.includes('"collected_data"')) {
+                setTimeout(decodeData, 500);
+            }
+        });
+    </script>
+</body>
+
+</html>
