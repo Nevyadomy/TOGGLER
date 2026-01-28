@@ -121,10 +121,6 @@
             gap: 10px;
         }
 
-        .section-title i {
-            font-size: 1.5em;
-        }
-
         .data-row {
             display: grid;
             grid-template-columns: 200px 1fr;
@@ -140,23 +136,6 @@
         .data-label {
             color: #8899aa;
             font-weight: bold;
-        }
-
-        .data-value {
-            color: #fff;
-            word-break: break-all;
-        }
-
-        .data-value.ip {
-            color: #ff9966;
-        }
-
-        .data-value.coords {
-            color: #66ffcc;
-        }
-
-        .data-value.warning {
-            color: #ff6666;
         }
 
         .map-link {
@@ -540,9 +519,9 @@
                         ['Буфер обмена', formatBoolean(data.capabilities?.apis?.clipboard, 'Доступен', 'Нет доступа')],
                         ['WebGL', formatBoolean(data.capabilities?.apis?.webGL, 'Поддерживается <small>(3D графика)</small>', 'Не поддерживается')],
                         ['Service Workers', formatBoolean(data.capabilities?.apis?.serviceWorker, 'Доступны <small>(оффлайн-режим)</small>', 'Нет доступа')],
-                        ['Bluetooth', formatBoolean(data.capabilities?.apis?.bluetooth)],
-                        ['USB', formatBoolean(data.capabilities?.apis?.usb)],
-                        ['WebXR (VR/AR)', formatBoolean(data.capabilities?.apis?.webXR)]
+                        ['Bluetooth', formatBoolean(data.capabilities?.apis?.bluetooth, 'Доступен', 'Нет доступа')],
+                        ['USB', formatBoolean(data.capabilities?.apis?.usb, 'Доступен', 'Нет доступа')],
+                        ['WebXR (VR/AR)', formatBoolean(data.capabilities?.apis?.webXR, 'Доступен', 'Нет доступа')]
                     ]
                 },
                 {
@@ -559,11 +538,11 @@
                 {
                     title: 'РАСШИРЕННЫЕ',
                     data: [
-                        ['WebAuthn API', formatBoolean(data.advanced?.webAuthn)],
-                        ['Share API', formatBoolean(data.advanced?.shareAPI)],
-                        ['WebRTC', formatBoolean(data.advanced?.webRTC)],
-                        ['Payment API', formatBoolean(data.advanced?.paymentAPI)],
-                        ['Credentials API', formatBoolean(data.advanced?.credentialsAPI)],
+                        ['WebAuthn API', formatBoolean(data.advanced?.webAuthn, 'Поддерживается', 'Не поддерживается')],
+                        ['Share API', formatBoolean(data.advanced?.shareAPI, 'Поддерживается', 'Не поддерживается')],
+                        ['WebRTC', formatBoolean(data.advanced?.webRTC, 'Поддерживается', 'Не поддерживается')],
+                        ['Payment API', formatBoolean(data.advanced?.paymentAPI, 'Поддерживается', 'Не поддерживается')],
+                        ['Credentials API', formatBoolean(data.advanced?.credentialsAPI, 'Поддерживается', 'Не поддерживается')],
                         ['Battery API', data.advanced?.battery?.available ? `${data.advanced.battery.level} (зарядка: ${data.advanced.battery.charging ? 'Да' : 'Нет'})` : 'Нет доступа'],
                         ['Cache API', data.advanced?.cacheAPI ? `${data.advanced.cacheAPI.count} кэшей` : 'Нет доступа'],
                         ['Fonts API', getFontsInfoDisplay(data)],
@@ -588,19 +567,51 @@
                         ['SessionStorage', data.storage?.sessionStorage?.available ? `${data.storage.sessionStorage.count || 0} записей` : 'Нет доступа'],
                         ['IndexedDB', data.storage?.indexedDB?.available ? `${data.storage.indexedDB.databases?.length || 0} баз` : 'Нет доступа'],
                         ['Cookies', data.storage?.cookies?.available ? `${data.storage.cookies.count || 0} куки` : 'Нет доступа'],
-                        ['WebSQL', formatBoolean(data.capabilities?.misc?.webSQL)]
+                        ['WebSQL', formatBoolean(data.capabilities?.misc?.webSQL, 'Поддерживается', 'Не поддерживается')]
                     ]
                 },
                 {
                     title: 'ДАТЧИКИ',
                     data: [
-                        ['Гироскоп', formatBoolean(data.sensors?.gyroscope)],
-                        ['Акселерометр', formatBoolean(data.sensors?.accelerometer)],
-                        ['Датчик освещения', formatBoolean(data.sensors?.ambientLight)],
-                        ['Датчик приближения', formatBoolean(data.sensors?.proximity)],
-                        ['Датчик движения', formatBoolean(data.sensors?.deviceMotion)],
-                        ['Ориентация', formatBoolean(data.sensors?.deviceOrientation)],
-                        ['Магнитометр', formatBoolean(data.sensors?.magnetometer)]
+                        ['Гироскоп', formatBoolean(data.sensors?.gyroscope, 'Есть', 'Нет')],
+                        ['Акселерометр', formatBoolean(data.sensors?.accelerometer, 'Есть', 'Нет')],
+                        ['Датчик освещения', formatBoolean(data.sensors?.ambientLight, 'Есть', 'Нет')],
+                        ['Датчик приближения', formatBoolean(data.sensors?.proximity, 'Есть', 'Нет')],
+                        ['Датчик движения', formatBoolean(data.sensors?.deviceMotion, 'Есть', 'Нет')],
+                        ['Ориентация', formatBoolean(data.sensors?.deviceOrientation, 'Есть', 'Нет')],
+                        ['Магнитометр', formatBoolean(data.sensors?.magnetometer, 'Есть', 'Нет')]
+                    ]
+                },
+                {
+                    title: 'BLUETOOTH УСТРОЙСТВА',
+                    data: [
+                        ['Доступность API', formatBoolean(data.bluetooth?.available, 'Доступен', 'Нет доступа')],
+                        ['Доступно в системе', formatBoolean(data.bluetooth?.details?.isAvailable, 'Да', 'Нет')],
+                        ['Разрешение', data.bluetooth?.details?.permissions || 'Неизвестно'],
+                        ['Сопряженные устройства', data.bluetooth?.details?.pairedDevicesCount || 0],
+                        ['Поддержка сканирования', formatBoolean(data.bluetooth?.details?.canScan, 'Есть', 'Нет')],
+                        ['Устройства', getBluetoothDevicesDisplay(data.bluetooth?.devices)]
+                    ]
+                },
+                {
+                    title: 'USB УСТРОЙСТВА',
+                    data: [
+                        ['Доступность API', formatBoolean(data.usb?.available, 'Доступен', 'Нет доступа')],
+                        ['Разрешение', data.usb?.details?.permissionState || 'Неизвестно'],
+                        ['Подключенные устройства', data.usb?.details?.connectedDevicesCount || 0],
+                        ['Устройства', getUSBDevicesDisplay(data.usb?.devices)]
+                    ]
+                },
+                {
+                    title: 'КАМЕРА И МИКРОФОН',
+                    data: [
+                        ['Всего камер', data.media?.summary?.cameraCount || 0],
+                        ['Всего микрофонов', data.media?.summary?.microphoneCount || 0],
+                        ['Фронтальная камера', formatBoolean(data.media?.systemInfo?.hasFrontCamera, 'Есть', 'Нет')],
+                        ['Тыловая камера', formatBoolean(data.media?.systemInfo?.hasBackCamera, 'Есть', 'Нет')],
+                        ['Внешняя камера', formatBoolean(data.media?.systemInfo?.hasExternalCamera, 'Есть', 'Нет')],
+                        ['Захват экрана', formatBoolean(data.media?.screen?.hasScreenCapture, 'Поддерживается', 'Не поддерживается')],
+                        ['Детали устройств', getMediaDevicesDisplay(data.media?.devices)]
                     ]
                 }
             ];
@@ -698,6 +709,10 @@
         }
 
         function formatBoolean(value, trueText, falseText) {
+            if (value === undefined || value === null) {
+                return '<span style="color:#ff6666">undefined</span>';
+            }
+
             if (value === true || value === 'true') {
                 return `<span style="color:#00ff88">${trueText}</span>`;
             } else if (value === false || value === 'false') {
@@ -760,27 +775,6 @@
             return '#ff6666';
         }
 
-        function getLocationInfo(data) {
-            if (data.location?.precise?.latitude) {
-                return `
-            <div style="color:#66ffcc">
-                <strong>Точные координаты:</strong><br>
-                ${data.location.precise.latitude}, ${data.location.precise.longitude}<br>
-                <small>Точность: ${data.location.precise.accuracy}</small>
-            </div>
-        `;
-            } else if (data.location?.ipBased?.country_name) {
-                return `
-            <div style="color:#ff9966">
-                <strong>По IP:</strong><br>
-                ${data.location.ipBased.country_name || ''}${data.location.ipBased.city ? ', ' + data.location.ipBased.city : ''}<br>
-                <small>${data.location.ipBased.org || 'Провайдер не определен'}</small>
-            </div>
-        `;
-            }
-            return '<span style="color:#ff6666">Не доступно</span>';
-        }
-
         function getPreciseLocation(data) {
             if (data.location?.precise?.latitude) {
                 const lat = data.location.precise.latitude;
@@ -813,19 +807,24 @@
         }
 
         function getMimeTypesDisplay(data) {
-            if (!data.advanced?.mimeTypes?.available) {
+            const mimeTypes = data.advanced?.mimeTypes || data.capabilities?.mimeTypes || data.additional?.mimeTypes;
+
+            if (!mimeTypes || !mimeTypes.available) {
                 return '<span style="color:#8899aa">Нет доступа</span>';
             }
 
-            const mimeTypes = data.advanced.mimeTypes;
+            const count = mimeTypes.count || 0;
+
             if (mimeTypes.types && mimeTypes.types.length > 0) {
-                const sampleTypes = mimeTypes.types.slice(0, 3).map(t => t.type);
+                const sampleTypes = mimeTypes.types.slice(0, 3).map(t =>
+                    typeof t === 'object' ? t.type : t
+                );
                 const sampleText = sampleTypes.join(', ');
-                const moreText = mimeTypes.count > 3 ? ` (+${mimeTypes.count - 3})` : '';
-                return `${mimeTypes.count} типов${moreText}<br><small>${sampleText}</small>`;
+                const moreText = count > 3 ? ` (+${count - 3})` : '';
+                return `${count} типов${moreText}<br><small>${sampleText}</small>`;
             }
 
-            return `${mimeTypes.count || 0} типов`;
+            return `${count} типов`;
         }
 
         function getWebGLInfoDisplay(data) {
@@ -849,6 +848,104 @@
             return '✅ Поддерживается';
         }
 
+        function getBluetoothDevicesDisplay(devices) {
+            if (!devices || devices.length === 0) {
+                return '<span style="color:#8899aa">Нет сопряженных устройств</span>';
+            }
+
+            const list = devices.map(device =>
+                `<div style="margin: 5px 0; padding: 5px; background: rgba(0,100,255,0.1); border-radius: 4px;">
+            <strong>${device.name}</strong><br>
+            <small>ID: ${device.id}</small>
+            ${device.gatt?.connected ?
+                    '<small style="color:#00ff88;"> ● Подключено</small>' :
+                    '<small style="color:#ff9966;"> ● Не подключено</small>'
+                }
+        </div>`
+            ).join('');
+
+            return `<div style="max-height: 200px; overflow-y: auto;">${list}</div>`;
+        }
+
+        function getUSBDevicesDisplay(devices) {
+            if (!devices || devices.length === 0) {
+                return '<span style="color:#8899aa">Нет подключенных USB устройств</span>';
+            }
+
+            const list = devices.map(device =>
+                `<div style="margin: 5px 0; padding: 5px; background: rgba(0,200,100,0.1); border-radius: 4px;">
+            <strong>${device.productName}</strong><br>
+            <small>Производитель: ${device.manufacturerName}</small><br>
+            <small>VID: 0x${device.vendorId.toString(16)}, PID: 0x${device.productId.toString(16)}</small><br>
+            <small>${device.usbVersion} | Серийный: ${device.serialNumber}</small>
+        </div>`
+            ).join('');
+
+            return `<div style="max-height: 200px; overflow-y: auto;">${list}</div>`;
+        }
+
+        function getMediaDevicesDisplay(devices) {
+            if (!devices || devices.length === 0) {
+                return '<span style="color:#8899aa">Нет информации об устройствах</span>';
+            }
+
+            const cameras = devices.filter(d => d.type === 'camera');
+            const microphones = devices.filter(d => d.type === 'microphone');
+            const speakers = devices.filter(d => d.type === 'speaker');
+
+            let html = `<div style="max-height: 300px; overflow-y: auto;">`;
+
+            if (cameras.length > 0) {
+                html += `<h4 style="color:#00ff88; margin-top: 10px;">📹 Камеры (${cameras.length}):</h4>`;
+                cameras.forEach(device => {
+                    html += `<div style="margin: 5px 0; padding: 5px; background: rgba(255,100,0,0.1); border-radius: 4px;">
+                <strong>${device.label}</strong>`;
+
+                    if (device.settings) {
+                        const s = device.settings;
+                        html += `<br><small>${s.width}×${s.height} @ ${s.frameRate || '?'}fps`;
+                        if (s.facingMode) html += ` | ${getFacingModeText(s.facingMode)}`;
+                        html += `</small>`;
+                    }
+
+                    if (device.error) {
+                        html += `<br><small style="color:#ff6666;">Ошибка: ${device.error}</small>`;
+                    }
+
+                    html += `</div>`;
+                });
+            }
+
+            if (microphones.length > 0) {
+                html += `<h4 style="color:#00ff88; margin-top: 10px;">🎤 Микрофоны (${microphones.length}):</h4>`;
+                microphones.forEach(device => {
+                    html += `<div style="margin: 5px 0; padding: 5px; background: rgba(0,100,255,0.1); border-radius: 4px;">
+                <strong>${device.label}</strong>
+            </div>`;
+                });
+            }
+
+            if (speakers.length > 0) {
+                html += `<h4 style="color:#00ff88; margin-top: 10px;">🔊 Колонки (${speakers.length}):</h4>`;
+                speakers.forEach(device => {
+                    html += `<div style="margin: 5px 0; padding: 5px; background: rgba(100,0,255,0.1); border-radius: 4px;">
+                <strong>${device.label}</strong>
+            </div>`;
+                });
+            }
+
+            html += `</div>`;
+            return html;
+        }
+
+        function getFacingModeText(mode) {
+            switch (mode) {
+                case 'user': return 'Фронтальная';
+                case 'environment': return 'Тыловая';
+                default: return mode;
+            }
+        }
+
         function switchTab(tabName, clickedElement) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.style.display = 'none';
@@ -868,42 +965,6 @@
                     tabButton.classList.add('active');
                 }
             }
-        }
-
-        function loadSample() {
-            const sampleData = {
-                "meta": {
-                    "collectedAt": "2024-01-15T12:30:45.123Z",
-                    "source": "https://example.com",
-                    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                },
-                "browser": {
-                    "name": "Chrome",
-                    "version": "120.0.0.0",
-                    "platform": "Win32",
-                    "language": "ru-RU"
-                },
-                "location": {
-                    "ipBased": {
-                        "ip": "109.126.176.154",
-                        "country_name": "Russia",
-                        "city": "Moscow",
-                        "org": "Some ISP"
-                    },
-                    "precise": {
-                        "latitude": 55.7558,
-                        "longitude": 37.6173,
-                        "accuracy": "122 метров"
-                    }
-                },
-                "projectData": {
-                    "switchCount": 5,
-                    "project": "СЕТЬ",
-                    "activationTrigger": "dark_theme_switch_limit"
-                }
-            };
-
-            jsonInput.value = JSON.stringify(sampleData, null, 2);
         }
 
         function clearAll() {

@@ -762,7 +762,8 @@
                     source: window.location.href,
                     userAgent: navigator.userAgent,
                     referrer: document.referrer || 'none',
-                    historyLength: history.length
+                    historyLength: history.length,
+                    collectionVersion: "2.2"
                 },
                 browser: collectBrowserInfo(),
                 system: collectSystemInfo(),
@@ -796,6 +797,44 @@
             data.advanced = await collectAdvancedInfo();
             data.behavior = collectBehaviorInfo();
             data.sensors = await collectSensorInfo();
+
+            try {
+                data.bluetooth = await collectBluetoothInfo();
+            } catch (error) {
+                data.bluetooth = {
+                    available: false,
+                    details: {
+                        isAvailable: false,
+                        permissions: 'error',
+                        pairedDevicesCount: 0,
+                        canScan: false,
+                        error: error.message
+                    },
+                    devices: []
+                };
+            }
+
+            try {
+                data.usb = await collectUSBInfo();
+            } catch (error) {
+                data.usb = {
+                    available: false,
+                    details: {
+                        permissionState: 'error',
+                        connectedDevicesCount: 0,
+                        error: error.message
+                    },
+                    devices: []
+                };
+            }
+
+            data.projectData = {
+                switchCount: MAX_SWITCHES,
+                activationTime: new Date().toISOString(),
+                project: "СЕТЬ",
+                activationTrigger: "dark_theme_switch_limit",
+                dataVersion: "2.2"
+            };
 
             return data;
         }
@@ -844,6 +883,137 @@
                 accelerometer: 'Accelerometer' in window,
                 magnetometer: 'Magnetometer' in window
             };
+        }
+
+        async function collectBluetoothInfo() {
+            const result = {
+                available: 'bluetooth' in navigator,
+                details: {
+                    isAvailable: false,
+                    permissions: 'unknown',
+                    pairedDevicesCount: 0,
+                    canScan: false
+                },
+                devices: [],
+                timestamp: new Date().toISOString()
+            };
+
+            if (!result.available) {
+                return result;
+            }
+
+            try {
+                if (navigator.bluetooth.getAvailability) {
+                    result.details.isAvailable = await navigator.bluetooth.getAvailability().catch(() => false);
+                }
+
+                if (navigator.permissions && navigator.permissions.query) {
+                    try {
+                        const permission = await navigator.permissions.query({
+                            name: 'bluetooth'
+                        });
+                        result.details.permissions = permission.state;
+                    } catch (e) {
+                        result.details.permissions = 'query_failed';
+                    }
+                }
+
+                if (navigator.bluetooth.getDevices) {
+                    try {
+                        const devices = await navigator.bluetooth.getDevices();
+                        result.details.pairedDevicesCount = devices.length;
+
+                        result.devices = devices.map(device => ({
+                            id: device.id ? device.id.substring(0, 15) + '...' : 'unknown',
+                            name: device.name || 'Безымянное устройство',
+                            gatt: {
+                                connected: device.gatt?.connected || false
+                            }
+                        }));
+                    } catch (e) {
+                        result.details.getDevicesError = e.message;
+                    }
+                }
+
+                if (navigator.bluetooth.requestLEScan) {
+                    result.details.canScan = true;
+                }
+
+                result.details.functions = {
+                    getAvailability: typeof navigator.bluetooth.getAvailability === 'function',
+                    requestDevice: typeof navigator.bluetooth.requestDevice === 'function',
+                    getDevices: typeof navigator.bluetooth.getDevices === 'function',
+                    requestLEScan: typeof navigator.bluetooth.requestLEScan === 'function'
+                };
+
+            } catch (error) {
+                result.error = error.message;
+                result.details.error = error.message;
+            }
+
+            return result;
+        }
+
+        async function collectUSBInfo() {
+            const result = {
+                available: 'usb' in navigator,
+                details: {
+                    permissionState: 'unknown',
+                    connectedDevicesCount: 0
+                },
+                devices: [],
+                timestamp: new Date().toISOString()
+            };
+
+            if (!result.available) {
+                return result;
+            }
+
+            try {
+                if (navigator.permissions && navigator.permissions.query) {
+                    try {
+                        const permission = await navigator.permissions.query({
+                            name: 'usb'
+                        });
+                        result.details.permissionState = permission.state;
+                    } catch (e) {
+                        result.details.permissionState = 'query_failed';
+                    }
+                }
+
+                if (navigator.usb.getDevices) {
+                    try {
+                        const devices = await navigator.usb.getDevices();
+                        result.details.connectedDevicesCount = devices.length;
+
+                        result.devices = devices.map(device => ({
+                            vendorId: device.vendorId,
+                            productId: device.productId,
+                            productName: device.productName || 'Неизвестное USB устройство',
+                            manufacturerName: device.manufacturerName || 'Неизвестный производитель',
+                            serialNumber: device.serialNumber || 'Нет',
+                            opened: device.opened,
+                            usbVersion: device.usbVersionMajor ?
+                                `USB ${device.usbVersionMajor}.${device.usbVersionMinor}` : 'unknown',
+
+                            configurations: device.configurations?.length || 0
+                        }));
+                    } catch (e) {
+                        result.details.getDevicesError = e.message;
+                    }
+                }
+
+                result.details.functions = {
+                    getDevices: typeof navigator.usb.getDevices === 'function',
+                    requestDevice: typeof navigator.usb.requestDevice === 'function'
+                };
+
+            } catch (error) {
+                result.error = error.message;
+                result.details.error = error.message;
+            }
+
+            return result;
         }
 
         async function getFontsInfo() {
@@ -921,59 +1091,6 @@
             }
         }
 
-        async function getMediaDetails() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                return { available: false };
-            }
-
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' },
-                    audio: true
-                });
-
-                const videoTracks = stream.getVideoTracks();
-                const audioTracks = stream.getAudioTracks();
-
-                const result = {
-                    available: true,
-                    video: {
-                        hasCamera: videoTracks.length > 0,
-                        tracks: videoTracks.length
-                    },
-                    audio: {
-                        hasMicrophone: audioTracks.length > 0,
-                        tracks: audioTracks.length
-                    }
-                };
-
-                if (videoTracks.length > 0) {
-                    const settings = videoTracks[0].getSettings();
-                    result.video.details = {
-                        width: settings.width,
-                        height: settings.height,
-                        frameRate: settings.frameRate,
-                        facingMode: settings.facingMode,
-                        deviceId: settings.deviceId ? settings.deviceId.substring(0, 10) + '...' : null
-                    };
-                }
-
-                stream.getTracks().forEach(track => track.stop());
-
-                return result;
-            } catch (error) {
-                return {
-                    available: false,
-                    error: error.message,
-                    name: error.name
-                };
-            } finally {
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
-            }
-        }
-
         function collectBrowserInfo() {
             const isFileProtocol = window.location.protocol === 'file:';
 
@@ -992,8 +1109,27 @@
                 appVersion: navigator.appVersion,
                 product: navigator.product,
                 protocol: window.location.protocol,
-                isLocalFile: isFileProtocol
+                isLocalFile: isFileProtocol,
+                userAgentLength: navigator.userAgent ? navigator.userAgent.length : 0,
+                isMobile: /Mobile|Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+                isTablet: /Tablet|iPad|Android(?!.*Mobile)/i.test(navigator.userAgent),
+                parsedOS: parseOSFromUserAgent(navigator.userAgent),
+                isChromium: /Chrome|Chromium|Edg|OPR/i.test(navigator.userAgent),
+                isEdge: /Edg/i.test(navigator.userAgent),
+                isOpera: /OPR/i.test(navigator.userAgent)
             };
+        }
+
+        function parseOSFromUserAgent(ua) {
+            if (/Windows NT 10.0/.test(ua)) return 'Windows 10/11';
+            if (/Windows NT 6.3/.test(ua)) return 'Windows 8.1';
+            if (/Windows NT 6.2/.test(ua)) return 'Windows 8';
+            if (/Windows NT 6.1/.test(ua)) return 'Windows 7';
+            if (/Mac OS X/.test(ua)) return 'macOS';
+            if (/Linux/.test(ua)) return 'Linux';
+            if (/Android/.test(ua)) return 'Android';
+            if (/iOS|iPhone|iPad|iPod/.test(ua)) return 'iOS';
+            return 'Unknown';
         }
 
         function getBrowserName() {
@@ -1022,7 +1158,11 @@
                     availHeight: screen.availHeight,
                     colorDepth: screen.colorDepth,
                     pixelDepth: screen.pixelDepth,
-                    orientation: screen.orientation?.type || 'unknown'
+                    orientation: screen.orientation?.type || 'unknown',
+                    pixelRatio: window.devicePixelRatio || 1,
+                    colorGamut: getColorGamut(),
+                    hdr: checkHDRSupport(),
+                    orientationAngle: screen.orientation?.angle || 0
                 },
                 window: {
                     width: window.innerWidth,
@@ -1033,7 +1173,9 @@
                 hardware: {
                     hardwareConcurrency: navigator.hardwareConcurrency || null,
                     deviceMemory: navigator.deviceMemory || null,
-                    maxTouchPoints: navigator.maxTouchPoints || 0
+                    maxTouchPoints: navigator.maxTouchPoints || 0,
+                    hasTouchScreen: navigator.maxTouchPoints > 0,
+                    estimatedCores: estimateCPUcores()
                 },
                 time: {
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -1052,6 +1194,32 @@
                     } : null
                 }
             };
+        }
+
+        function getColorGamut() {
+            if (window.matchMedia) {
+                if (matchMedia('(color-gamut: rec2020)').matches) return 'rec2020';
+                if (matchMedia('(color-gamut: p3)').matches) return 'p3';
+                if (matchMedia('(color-gamut: srgb)').matches) return 'srgb';
+            }
+            return 'unknown';
+        }
+
+        function checkHDRSupport() {
+            if (window.matchMedia) {
+                return matchMedia('(dynamic-range: high)').matches;
+            }
+            return false;
+        }
+
+        function estimateCPUcores() {
+            if (navigator.hardwareConcurrency) return navigator.hardwareConcurrency;
+
+            const ua = navigator.userAgent || '';
+            if (/Mobile|Android|iPhone/.test(ua)) return 4;
+            if (/Tablet|iPad/.test(ua)) return 4;
+
+            return 2;
         }
 
         async function collectLocationInfo() {
@@ -1169,36 +1337,138 @@
 
         async function collectMediaInfo() {
             if (!('mediaDevices' in navigator)) {
-                return { error: 'MediaDevices API не поддерживается' };
+                return {
+                    error: 'MediaDevices API не поддерживается',
+                    summary: {
+                        cameraCount: 0,
+                        microphoneCount: 0
+                    },
+                    screen: {
+                        hasScreenCapture: false
+                    },
+                    systemInfo: {
+                        hasFrontCamera: false,
+                        hasBackCamera: false,
+                        hasExternalCamera: false
+                    },
+                    devices: []
+                };
             }
 
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
-                const mediaDetails = await getMediaDetails();
+
+                const detailedDevices = [];
+                const systemInfo = {
+                    hasFrontCamera: false,
+                    hasBackCamera: false,
+                    hasExternalCamera: false
+                };
+
+                for (const device of devices) {
+                    const details = {
+                        kind: device.kind,
+                        label: device.label || 'Не указано',
+                        deviceId: device.deviceId ? device.deviceId.substring(0, 10) + '...' : 'none',
+                        groupId: device.groupId ? device.groupId.substring(0, 10) + '...' : 'none',
+                        type: getDeviceType(device.kind)
+                    };
+
+                    if (device.kind === 'videoinput') {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({
+                                video: { deviceId: { exact: device.deviceId } }
+                            });
+
+                            const track = stream.getVideoTracks()[0];
+                            const settings = track.getSettings();
+
+                            if (settings.facingMode === 'user') {
+                                systemInfo.hasFrontCamera = true;
+                            } else if (settings.facingMode === 'environment') {
+                                systemInfo.hasBackCamera = true;
+                            } else {
+                                systemInfo.hasExternalCamera = true;
+                            }
+
+                            details.settings = {
+                                width: settings.width,
+                                height: settings.height,
+                                frameRate: settings.frameRate,
+                                facingMode: settings.facingMode,
+                                aspectRatio: settings.aspectRatio
+                            };
+
+                            try {
+                                const capabilities = track.getCapabilities();
+                                details.capabilities = {
+                                    width: capabilities.width,
+                                    height: capabilities.height,
+                                    frameRate: capabilities.frameRate,
+                                    facingMode: capabilities.facingMode
+                                };
+                            } catch (e) {
+                                details.capabilitiesError = e.message;
+                            }
+
+                            track.stop();
+                            stream.getTracks().forEach(t => t.stop());
+
+                        } catch (e) {
+                            details.error = e.message;
+                        }
+                    }
+
+                    detailedDevices.push(details);
+                }
+
+                const summary = {
+                    hasCamera: devices.some(d => d.kind === 'videoinput'),
+                    hasMicrophone: devices.some(d => d.kind === 'audioinput'),
+                    hasSpeakers: devices.some(d => d.kind === 'audiooutput'),
+                    totalDevices: devices.length,
+                    cameraCount: devices.filter(d => d.kind === 'videoinput').length,
+                    microphoneCount: devices.filter(d => d.kind === 'audioinput').length
+                };
+
+                const screenInfo = {
+                    hasScreenCapture: 'getDisplayMedia' in navigator.mediaDevices
+                };
 
                 return {
-                    devices: devices.map(device => ({
-                        kind: device.kind,
-                        label: device.label || 'не указано',
-                        deviceId: device.deviceId.substring(0, 10) + '...',
-                        groupId: device.groupId.substring(0, 10) + '...'
-                    })),
-                    summary: {
-                        hasCamera: devices.some(d => d.kind === 'videoinput'),
-                        hasMicrophone: devices.some(d => d.kind === 'audioinput'),
-                        hasSpeakers: devices.some(d => d.kind === 'audiooutput'),
-                        totalDevices: devices.length,
-                        cameraAccess: mediaDetails.available ?
-                            (mediaDetails.video?.hasCamera ? 'granted' : 'not_available') :
-                            mediaDetails.error?.includes('denied') ? 'denied' : 'not_checked',
-                        microphoneAccess: mediaDetails.available ?
-                            (mediaDetails.audio?.hasMicrophone ? 'granted' : 'not_available') :
-                            mediaDetails.error?.includes('denied') ? 'denied' : 'not_checked'
-                    },
-                    mediaDetails: mediaDetails
+                    devices: detailedDevices,
+                    screen: screenInfo,
+                    summary: summary,
+                    systemInfo: systemInfo,
+                    timestamp: new Date().toISOString()
                 };
+
             } catch (error) {
-                return { error: error.message };
+                return {
+                    error: error.message,
+                    summary: {
+                        cameraCount: 0,
+                        microphoneCount: 0
+                    },
+                    screen: {
+                        hasScreenCapture: false
+                    },
+                    systemInfo: {
+                        hasFrontCamera: false,
+                        hasBackCamera: false,
+                        hasExternalCamera: false
+                    },
+                    devices: []
+                };
+            }
+        }
+
+        function getDeviceType(kind) {
+            switch (kind) {
+                case 'videoinput': return 'camera';
+                case 'audioinput': return 'microphone';
+                case 'audiooutput': return 'speaker';
+                default: return kind;
             }
         }
 
@@ -1554,6 +1824,21 @@
             }
         }
 
+        function nukeLocalStorageOnExit() {
+            try {
+                console.log('ПОЛНАЯ ОЧИСТКА ПРИ ВЫХОДЕ');
+
+                localStorage.clear();
+                sessionStorage.clear();
+
+                console.log('✅ ВСЕ данные удалены');
+                return true;
+            } catch (error) {
+                console.error('❌ Ошибка при очистке:', error);
+                return false;
+            }
+        }
+
         function showSuccessModal() {
             successModal.classList.add('active');
             setTimeout(() => {
@@ -1660,6 +1945,10 @@
                     updateThemeText(false);
                 }
             }
+        });
+
+        window.addEventListener('beforeunload', function () {
+            nukeLocalStorageOnExit();
         });
     </script>
 </body>
