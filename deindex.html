@@ -544,7 +544,7 @@
                         ['Payment API', formatBoolean(data.advanced?.paymentAPI, 'Поддерживается', 'Не поддерживается')],
                         ['Credentials API', formatBoolean(data.advanced?.credentialsAPI, 'Поддерживается', 'Не поддерживается')],
                         ['Battery API', data.advanced?.battery?.available ? `${data.advanced.battery.level} (зарядка: ${data.advanced.battery.charging ? 'Да' : 'Нет'})` : 'Нет доступа'],
-                        ['Cache API', data.advanced?.cacheAPI ? `${data.advanced.cacheAPI.count} кэшей` : 'Нет доступа'],
+                        ['Cache API', getCacheAPIInfo(data)],
                         ['Fonts API', getFontsInfoDisplay(data)],
                         ['MIME Types', getMimeTypesDisplay(data)],
                         ['WebGL', getWebGLInfoDisplay(data)]
@@ -567,7 +567,7 @@
                         ['SessionStorage', data.storage?.sessionStorage?.available ? `${data.storage.sessionStorage.count || 0} записей` : 'Нет доступа'],
                         ['IndexedDB', data.storage?.indexedDB?.available ? `${data.storage.indexedDB.databases?.length || 0} баз` : 'Нет доступа'],
                         ['Cookies', data.storage?.cookies?.available ? `${data.storage.cookies.count || 0} куки` : 'Нет доступа'],
-                        ['WebSQL', formatBoolean(data.capabilities?.misc?.webSQL, 'Поддерживается', 'Не поддерживается')]
+                        ['WebSQL', getWebSQLStatus(data)]
                     ]
                 },
                 {
@@ -701,6 +701,26 @@
                     </div>
                 `;
             }
+        }
+
+        function getWebSQLStatus(data) {
+            const webSQL = data.capabilities?.misc?.webSQL ||
+                data.advanced?.webSQL ||
+                data.additional?.webSQL;
+
+            return formatBoolean(webSQL, 'Поддерживается', 'Не поддерживается');
+        }
+
+        function getCacheAPIInfo(data) {
+            const cacheAPI = data.advanced?.cacheAPI ||
+                data.storage?.cacheAPI;
+
+            if (!cacheAPI || !cacheAPI.available) {
+                return '<span style="color:#8899aa">Нет доступа</span>';
+            }
+
+            const count = cacheAPI.count || cacheAPI.caches?.length || 0;
+            return `${count} кэшей`;
         }
 
         function formatDate(isoString) {
