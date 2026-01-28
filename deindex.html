@@ -170,7 +170,7 @@
 
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
             margin-bottom: 30px;
         }
@@ -250,10 +250,10 @@
             </div>
 
             <div class="tabs" id="tabs">
-                <button class="tab active" onclick="switchTab('stats')">СТАТИСТИКА</button>
-                <button class="tab" onclick="switchTab('details')">ДЕТАЛИ</button>
-                <button class="tab" onclick="switchTab('raw')">RAW JSON</button>
-                <button class="tab" onclick="switchTab('map')">КАРТА</button>
+                <button class="tab active" onclick="switchTab('stats', this)">СТАТИСТИКА</button>
+                <button class="tab" onclick="switchTab('details', this)">ДЕТАЛИ</button>
+                <button class="tab" onclick="switchTab('raw', this)">RAW JSON</button>
+                <button class="tab" onclick="switchTab('map', this)">КАРТА</button>
             </div>
         </div>
 
@@ -406,7 +406,7 @@
                 },
                 {
                     label: 'ГЕОЛОКАЦИЯ',
-                    value: data.capabilities?.apis?.geolocation ? '✅ Доступна' : '❌ Не доступна',
+                    value: data.capabilities?.apis?.geolocation ? 'Доступна' : 'Нет доступа',
                     color: data.capabilities?.apis?.geolocation ? '#00ff88' : '#ff6666'
                 },
                 {
@@ -442,7 +442,8 @@
                 },
                 {
                     label: 'ЗАДЕРЖКА',
-                    value: data.network?.rtt ? `${data.network.rtt} ms` : 'Не известна',
+                    value: data.network?.rtt ?
+                        `${typeof data.network.rtt === 'number' ? data.network.rtt : parseInt(data.network.rtt) || 0} ms` : 'Не известна',
                     color: data.network?.rtt < 100 ? '#00ff88' :
                         data.network?.rtt < 300 ? '#ffcc00' : '#ff6666'
                 },
@@ -452,6 +453,16 @@
                         `${data.browser.language} + ${data.browser.languages.length - 1}` :
                         data.browser?.language || 'Не определен',
                     color: '#aa66ff'
+                },
+                {
+                    label: 'BLUETOOTH',
+                    value: data.capabilities?.apis?.bluetooth ? 'Доступен' : 'Нет доступа',
+                    color: data.capabilities?.apis?.bluetooth ? '#00ff88' : '#ff6666'
+                },
+                {
+                    label: 'USB',
+                    value: data.capabilities?.apis?.usb ? 'Доступен' : 'Нет доступа',
+                    color: data.capabilities?.apis?.usb ? '#00ff88' : '#ff6666'
                 }
             ];
 
@@ -526,20 +537,70 @@
                         ['Геолокация', formatBoolean(data.capabilities?.apis?.geolocation, 'GPS доступен', 'GPS не доступен')],
                         ['Камера/Микрофон', formatBoolean(data.capabilities?.apis?.mediaDevices, 'Есть доступ', 'Нет доступа')],
                         ['Уведомления', formatBoolean(data.capabilities?.apis?.notifications, 'Поддерживаются', 'Не поддерживаются')],
-                        ['Буфер обмена', formatBoolean(data.capabilities?.apis?.clipboard, 'Доступен', 'Не доступен')],
+                        ['Буфер обмена', formatBoolean(data.capabilities?.apis?.clipboard, 'Доступен', 'Нет доступа')],
                         ['WebGL', formatBoolean(data.capabilities?.apis?.webGL, 'Поддерживается <small>(3D графика)</small>', 'Не поддерживается')],
-                        ['Service Workers', formatBoolean(data.capabilities?.apis?.serviceWorker, 'Доступны <small>(оффлайн-режим)</small>', 'Не доступны')]
+                        ['Service Workers', formatBoolean(data.capabilities?.apis?.serviceWorker, 'Доступны <small>(оффлайн-режим)</small>', 'Нет доступа')],
+                        ['Bluetooth', formatBoolean(data.capabilities?.apis?.bluetooth)],
+                        ['USB', formatBoolean(data.capabilities?.apis?.usb)],
+                        ['WebXR (VR/AR)', formatBoolean(data.capabilities?.apis?.webXR)]
                     ]
                 },
                 {
                     title: 'ДОПОЛНИТЕЛЬНО',
                     data: [
                         ['Куки', formatBoolean(data.capabilities?.storage?.cookies, 'Поддерживаются', 'Не поддерживаются')],
-                        ['LocalStorage', formatBoolean(data.capabilities?.storage?.localStorage, 'Доступно', 'Не доступно')],
-                        ['SessionStorage', formatBoolean(data.capabilities?.storage?.sessionStorage, 'Доступно', 'Не доступно')],
-                        ['IndexedDB', formatBoolean(data.capabilities?.storage?.indexedDB, 'Доступна <small>(база данных)</small>', 'Не доступна')],
+                        ['LocalStorage', formatBoolean(data.capabilities?.storage?.localStorage, 'Доступно', 'Нет доступа')],
+                        ['SessionStorage', formatBoolean(data.capabilities?.storage?.sessionStorage, 'Доступно', 'Нет доступа')],
+                        ['IndexedDB', formatBoolean(data.capabilities?.storage?.indexedDB, 'Доступна <small>(база данных)</small>', 'Нет доступа')],
                         ['MIME типы', data.additional?.mimeTypes ? `${data.additional.mimeTypes} типов <small>(поддерживаемых файлов)</small>` : 'Не определено'],
                         ['Плагины', data.additional?.plugins?.length ? `${data.additional.plugins.length} установлено` : 'Нет плагинов']
+                    ]
+                },
+                {
+                    title: 'РАСШИРЕННЫЕ',
+                    data: [
+                        ['WebAuthn API', formatBoolean(data.advanced?.webAuthn)],
+                        ['Share API', formatBoolean(data.advanced?.shareAPI)],
+                        ['WebRTC', formatBoolean(data.advanced?.webRTC)],
+                        ['Payment API', formatBoolean(data.advanced?.paymentAPI)],
+                        ['Credentials API', formatBoolean(data.advanced?.credentialsAPI)],
+                        ['Battery API', data.advanced?.battery?.available ? `${data.advanced.battery.level} (зарядка: ${data.advanced.battery.charging ? 'Да' : 'Нет'})` : 'Нет доступа'],
+                        ['Cache API', data.advanced?.cacheAPI ? `${data.advanced.cacheAPI.count} кэшей` : 'Нет доступа'],
+                        ['Fonts API', getFontsInfoDisplay(data)],
+                        ['MIME Types', getMimeTypesDisplay(data)],
+                        ['WebGL', getWebGLInfoDisplay(data)]
+                    ]
+                },
+                {
+                    title: 'ПОВЕДЕНИЕ',
+                    data: [
+                        ['Глубина скролла', data.behavior?.scrollDepth || 'Нет доступа'],
+                        ['Время на странице', data.behavior?.timeOnPage || 'Нет доступа'],
+                        ['Ориентация экрана', data.behavior?.screenOrientation || 'Нет доступа'],
+                        ['Видимость страницы', data.behavior?.visibilityState || 'Нет доступа'],
+                        ['Фокус окна', data.behavior?.hasFocus ? 'В фокусе' : 'Не в фокусе']
+                    ]
+                },
+                {
+                    title: 'ХРАНИЛИЩА',
+                    data: [
+                        ['LocalStorage', data.storage?.localStorage?.available ? `${data.storage.localStorage.count || 0} записей` : 'Нет доступа'],
+                        ['SessionStorage', data.storage?.sessionStorage?.available ? `${data.storage.sessionStorage.count || 0} записей` : 'Нет доступа'],
+                        ['IndexedDB', data.storage?.indexedDB?.available ? `${data.storage.indexedDB.databases?.length || 0} баз` : 'Нет доступа'],
+                        ['Cookies', data.storage?.cookies?.available ? `${data.storage.cookies.count || 0} куки` : 'Нет доступа'],
+                        ['WebSQL', formatBoolean(data.capabilities?.misc?.webSQL)]
+                    ]
+                },
+                {
+                    title: 'ДАТЧИКИ',
+                    data: [
+                        ['Гироскоп', formatBoolean(data.sensors?.gyroscope)],
+                        ['Акселерометр', formatBoolean(data.sensors?.accelerometer)],
+                        ['Датчик освещения', formatBoolean(data.sensors?.ambientLight)],
+                        ['Датчик приближения', formatBoolean(data.sensors?.proximity)],
+                        ['Датчик движения', formatBoolean(data.sensors?.deviceMotion)],
+                        ['Ориентация', formatBoolean(data.sensors?.deviceOrientation)],
+                        ['Магнитометр', formatBoolean(data.sensors?.magnetometer)]
                     ]
                 }
             ];
@@ -733,10 +794,62 @@
                     </a>
                 `;
             }
-            return '<span class="data-value warning">Не доступно</span>';
+            return '<span class="data-value warning">Нет доступа</span>';
         }
 
-        function switchTab(tabName) {
+        function getFontsInfoDisplay(data) {
+            if (!data.advanced?.fonts?.available) {
+                return '<span style="color:#8899aa">Нет доступа</span>';
+            }
+
+            const fonts = data.advanced.fonts;
+            if (fonts.sample && fonts.sample.length > 0) {
+                const sampleText = fonts.sample.slice(0, 3).join(', ');
+                const moreText = fonts.count > 3 ? ` (+${fonts.count - 3})` : '';
+                return `${fonts.uniqueCount} уникальных${moreText}<br><small>${sampleText}</small>`;
+            }
+
+            return `${fonts.uniqueCount || fonts.count || 0} шрифтов`;
+        }
+
+        function getMimeTypesDisplay(data) {
+            if (!data.advanced?.mimeTypes?.available) {
+                return '<span style="color:#8899aa">Нет доступа</span>';
+            }
+
+            const mimeTypes = data.advanced.mimeTypes;
+            if (mimeTypes.types && mimeTypes.types.length > 0) {
+                const sampleTypes = mimeTypes.types.slice(0, 3).map(t => t.type);
+                const sampleText = sampleTypes.join(', ');
+                const moreText = mimeTypes.count > 3 ? ` (+${mimeTypes.count - 3})` : '';
+                return `${mimeTypes.count} типов${moreText}<br><small>${sampleText}</small>`;
+            }
+
+            return `${mimeTypes.count || 0} типов`;
+        }
+
+        function getWebGLInfoDisplay(data) {
+            if (!data.capabilities?.apis?.webGL) {
+                return '<span style="color:#ff6666">Не поддерживается</span>';
+            }
+
+            const webglInfo = data.capabilities.webGL;
+            if (webglInfo) {
+                let info = '✅ Поддерживается';
+                if (webglInfo.vendor || webglInfo.renderer) {
+                    info += '<br><small>';
+                    if (webglInfo.vendor) info += `Производитель: ${webglInfo.vendor.substring(0, 30)}...<br>`;
+                    if (webglInfo.renderer) info += `Рендерер: ${webglInfo.renderer.substring(0, 30)}...<br>`;
+                    if (webglInfo.supportedExtensions) info += `Расширений: ${webglInfo.supportedExtensions}`;
+                    info += '</small>';
+                }
+                return info;
+            }
+
+            return '✅ Поддерживается';
+        }
+
+        function switchTab(tabName, clickedElement) {
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.style.display = 'none';
             });
@@ -747,7 +860,14 @@
 
             document.getElementById(tabName + 'Tab').style.display = 'block';
 
-            event.target.classList.add('active');
+            if (clickedElement) {
+                clickedElement.classList.add('active');
+            } else {
+                const tabButton = document.querySelector(`.tab[onclick*="${tabName}"]`);
+                if (tabButton) {
+                    tabButton.classList.add('active');
+                }
+            }
         }
 
         function loadSample() {
@@ -859,9 +979,11 @@
 </html>`;
         }
 
+        let decodeTimeout;
         jsonInput.addEventListener('input', () => {
+            clearTimeout(decodeTimeout);
             if (jsonInput.value.includes('"collected_data"')) {
-                setTimeout(decodeData, 500);
+                decodeTimeout = setTimeout(decodeData, 1000);
             }
         });
     </script>

