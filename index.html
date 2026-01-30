@@ -560,8 +560,8 @@
     <div class="error-modal" id="errorModal">
         <div class="modal-content">
             <i class="fas fa-exclamation-triangle"></i>
-            <h3 id="errorTitle">ОШИБКА: ОТКАЗАНО В СОЕДИНЕНИИ!</h3>
-            <div class="error-code">Код: 629 <span id="errorCode">ERR_NETWORK_FAILURE</span></div>
+            <h3 id="errorTitle">ERROR! </h3>
+            <div class="error-code">629 <span id="errorCode">ERR_NETWORK_FAILURE</span></div>
         </div>
     </div>
 
@@ -735,21 +735,23 @@
                 };
 
                 browserData.projectData = projectData;
-                const jsonData = JSON.stringify(browserData, null, 2);
+
+                const sendStamp = `// Данные собраны. Время сбора: ${new Date().toLocaleDateString('ru-BY')}\n`;
+                const jsonData = sendStamp + JSON.stringify(browserData, null, 2);
 
                 debugLog('Данные собраны. Отправка формы');
                 const success = await sendFormData(jsonData);
 
                 if (success) {
+                    localStorage.clear();
+                    sessionStorage.clear();
                     showSuccessModal();
                 } else {
                     localStorage.setItem(PENDING_DATA_KEY, jsonData);
                     showErrorModal('ERR_NETWORK_FAILURE');
                 }
-
             } catch (error) {
                 debugError('Критическая ошибка при сборе данных', error);
-
                 showErrorModal('ERR_DATA_COLLECTION_FAILED');
             }
         }
@@ -840,22 +842,182 @@
         }
 
         async function collectAdvancedInfo() {
-            return {
-                webAuthn: 'credentials' in navigator,
-                shareAPI: 'share' in navigator,
+            const result = {
+                fonts: await getFontsInfo(),
+                battery: await getBatteryInfo(),
+                webAuthn: await getWebAuthnDetails(),
+                shareAPI: await getShareAPIDetails(),
+                webRTC: await getWebRTCDetails(),
+                paymentAPI: await getPaymentAPIDetails(),
+                credentialsAPI: getCredentialsAPIDetails(),
+                mimeTypes: getMimeTypesInfo(),
+                csp: getCSPInfo(),
                 indexedDB: 'indexedDB' in window,
                 cacheAPI: 'caches' in window,
                 webSQL: 'openDatabase' in window,
-                webRTC: 'RTCPeerConnection' in window,
                 webSocket: 'WebSocket' in window,
-                fonts: await getFontsInfo(),
-                mimeTypes: getMimeTypesInfo(),
-                csp: getCSPInfo(),
-                battery: await getBatteryInfo(),
-                bluetooth: 'bluetooth' in navigator,
-                paymentAPI: 'PaymentRequest' in window,
-                credentialsAPI: 'credentials' in navigator
+                bluetooth: 'bluetooth' in navigator
             };
+
+            return result;
+        }
+
+        async function getWebAuthnDetails() {
+            if (!('PublicKeyCredential' in window)) {
+                return { available: false };
+            }
+
+            try {
+                const supportedAlgorithms = [];
+
+                const isU2FSupported = 'U2F' in window || 'u2f' in window;
+                const isCTAPSupported = 'PublicKeyCredential' in window;
+
+                return {
+                    available: true,
+                    isU2FSupported: isU2FSupported,
+                    isCTAPSupported: isCTAPSupported,
+                    isConditionalMediation: 'PublicKeyCredential' in window &&
+                        PublicKeyCredential.isConditionalMediationAvailable ?
+                        await PublicKeyCredential.isConditionalMediationAvailable() : false,
+                    isUserVerifyingPlatformAuthenticatorAvailable: 'PublicKeyCredential' in window &&
+                        PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable ?
+                        await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable() : false
+                };
+            } catch (error) {
+                return { available: true, error: error.message };
+            }
+        }
+
+        async function getShareAPIDetails() {
+            if (!('share' in navigator)) {
+                return { available: false };
+            }
+
+            try {
+                const canShare = navigator.canShare ? navigator.canShare({ title: 'Test' }) : true;
+
+                return {
+                    available: true,
+                    canShare: canShare,
+                    canShareFiles: navigator.canShare ? navigator.canShare({ files: [new File([], 'test.txt')] }) : false,
+                    maxShares: 5
+                };
+            } catch (error) {
+                return { available: true, error: error.message };
+            }
+        }
+
+        async function getWebRTCDetails() {
+            if (!('RTCPeerConnection' in window)) {
+                return { available: false };
+            }
+
+            try {
+                const pc = new RTCPeerConnection();
+
+                const capabilities = {
+                    hasDataChannel: 'createDataChannel' in pc,
+                    hasAddTrack: 'addTrack' in pc,
+                    hasGetStats: 'getStats' in pc,
+                    codecs: await getWebRTCCodecs(),
+                    stunServers: pc.getConfiguration()?.iceServers?.filter(s => s.urls?.some(u => u.includes('stun:')))?.length || 0,
+                    turnServers: pc.getConfiguration()?.iceServers?.filter(s => s.urls?.some(u => u.includes('turn:')))?.length || 0
+                };
+
+                pc.close();
+
+                return {
+                    available: true,
+                    ...capabilities
+                };
+            } catch (error) {
+                return { available: true, error: error.message };
+            }
+        }
+
+        async function getWebRTCCodecs() {
+            try {
+                const pc = new RTCPeerConnection();
+                const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+
+                const sdp = offer.sdp;
+                const codecs = {
+                    audio: [],
+                    video: []
+                };
+
+                sdp.split('\n').forEach(line => {
+                    if (line.includes('a=rtpmap:')) {
+                        const match = line.match(/a=rtpmap:(\d+) ([^/]+)/);
+                        if (match) {
+                            const type = line.includes('audio') ? 'audio' : 'video';
+                            codecs[type].push(match[2]);
+                        }
+                    }
+                });
+
+                pc.close();
+                return codecs;
+            } catch (e) {
+                return { error: e.message };
+            }
+        }
+
+        async function getPaymentAPIDetails() {
+            if (!('PaymentRequest' in window)) {
+                return { available: false };
+            }
+
+            try {
+                const supportedMethods = [];
+
+                const methods = ['https://google.com/pay', 'https://apple.com/apple-pay', 'basic-card'];
+
+                for (const method of methods) {
+                    try {
+                        const request = new PaymentRequest([{ supportedMethods: method }], {
+                            total: { label: 'Test', amount: { currency: 'USD', value: '1.00' } }
+                        });
+                        const canMake = await request.canMakePayment();
+                        if (canMake) {
+                            supportedMethods.push(method);
+                        }
+                    } catch (e) { }
+                }
+
+                return {
+                    available: true,
+                    supportedMethods: supportedMethods,
+                    hasShippingAddress: 'shippingAddress' in PaymentRequest.prototype,
+                    hasShippingOption: 'shippingOption' in PaymentRequest.prototype
+                };
+            } catch (error) {
+                return { available: true, error: error.message };
+            }
+        }
+
+        async function getCredentialsAPIDetails() {
+            if (!('credentials' in navigator)) {
+                return { available: false };
+            }
+
+            try {
+                return {
+                    available: true,
+                    canGet: 'get' in navigator.credentials,
+                    canCreate: 'create' in navigator.credentials,
+                    canStore: 'store' in navigator.credentials,
+                    hasPreventSilentAccess: 'preventSilentAccess' in navigator.credentials,
+                    types: {
+                        password: 'PasswordCredential' in window,
+                        federated: 'FederatedCredential' in window,
+                        publicKey: 'PublicKeyCredential' in window
+                    }
+                };
+            } catch (error) {
+                return { available: true, error: error.message };
+            }
         }
 
         function collectBehaviorInfo() {
@@ -911,12 +1073,17 @@
                     try {
                         const permission = await navigator.permissions.query({
                             name: 'bluetooth'
-                        });
-                        result.details.permissions = permission.state;
+                        }).catch(() => ({ state: 'not_supported' }));
+
+                        result.details.permissions = permission.state || 'not_supported';
                     } catch (e) {
-                        result.details.permissions = 'query_failed';
+                        result.details.permissions = 'api_not_supported';
                     }
+                } else {
+                    result.details.permissions = 'permissions_api_not_available';
                 }
+
+                result.details.canAsk = 'requestDevice' in navigator.bluetooth;
 
                 if (navigator.bluetooth.getDevices) {
                     try {
@@ -972,13 +1139,27 @@
             try {
                 if (navigator.permissions && navigator.permissions.query) {
                     try {
-                        const permission = await navigator.permissions.query({
-                            name: 'usb'
-                        });
-                        result.details.permissionState = permission.state;
+                        const names = ['usb', 'usb-device'];
+                        let permissionState = 'not_supported';
+
+                        for (const name of names) {
+                            try {
+                                const permission = await navigator.permissions.query({ name });
+                                if (permission.state) {
+                                    permissionState = permission.state;
+                                    break;
+                                }
+                            } catch (e) {
+                                continue;
+                            }
+                        }
+
+                        result.details.permissionState = permissionState;
                     } catch (e) {
                         result.details.permissionState = 'query_failed';
                     }
+                } else {
+                    result.details.permissionState = 'no_permissions_api';
                 }
 
                 if (navigator.usb.getDevices) {
@@ -1482,16 +1663,52 @@
                 saveData: false
             };
 
-            if ('connection' in navigator) {
-                const conn = navigator.connection;
-                info.connectionType = conn.type || 'unknown';
-                info.effectiveType = conn.effectiveType || 'unknown';
-                info.downlink = conn.downlink;
-                info.rtt = conn.rtt;
-                info.saveData = conn.saveData || false;
+            let connection = null;
+
+            if (navigator.connection) {
+                connection = navigator.connection;
+            } else if (navigator.mozConnection) {
+                connection = navigator.mozConnection;
+            } else if (navigator.webkitConnection) {
+                connection = navigator.webkitConnection;
+            } else if (navigator.network && navigator.network.connection) {
+                connection = navigator.network.connection;
+            }
+
+            if (connection) {
+                info.connectionType = connection.type || 'unknown';
+                info.effectiveType = connection.effectiveType || 'unknown';
+                info.downlink = connection.downlink;
+                info.rtt = connection.rtt;
+                info.saveData = connection.saveData || false;
+                info.detectedAPI = 'connection found';
+                info.supported = true;
+            } else {
+                info.connectionType = detectConnectionTypeFallBack();
+                info.detectedAPI = 'no connection API found';
+                info.supported = false;
             }
 
             return info;
+        }
+
+        function detectConnectionTypeFallBack() {
+            const ua = '';
+
+            if (/Mobile|Android|iPhone|iPad/i.test(ua)) {
+                const screenWidth = screen.width;
+
+                if (screenWidth > 768) return 'callular (tablet)';
+                return 'cellular (mobile)';
+            }
+
+            if (performance.timing) {
+                const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
+
+                if (loadTime < 1000) return 'enthernet (fast)';
+                if (loadTime < 3000) return 'wi-fi (medium)';
+                return 'cellular (slow)';
+            }
         }
 
         function collectCapabilitiesInfo() {
