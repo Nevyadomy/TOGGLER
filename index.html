@@ -1695,18 +1695,23 @@
 
             if (/Mobile|Android|iPhone|iPad/i.test(ua)) {
                 const screenWidth = screen.width;
-
                 if (screenWidth > 768) return 'cellular (tablet)';
                 return 'cellular (mobile)';
             }
 
-            if (performance.timing) {
+            if (performance.timing && performance.timing.loadEventEnd) {
                 const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
-
                 if (loadTime < 1000) return 'ethernet (fast)';
                 if (loadTime < 3000) return 'wifi (medium)';
-                return 'cellular (slow)';
+                return 'wifi (slow)';
             }
+
+            const platform = navigator.platform || '';
+            if (/Win|Mac|Linux/i.test(platform)) {
+                return 'ethernet/wifi';
+            }
+
+            return 'unknown';
         }
 
         function collectCapabilitiesInfo() {

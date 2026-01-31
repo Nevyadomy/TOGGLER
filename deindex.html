@@ -380,7 +380,7 @@
             const stats = [
                 {
                     label: 'IP АДРЕС',
-                    value: data.location?.details?.ipBased?.ip ? `<span title="Полный IP">${data.location.ipBased.ip}</span>` : 'Не определен',
+                    value: data.location?.details?.ipBased?.ip ? `<span title="Полный IP">${data.location.details.ipBased.ip}</span>` : 'Не определен',
                     color: '#ff9966'
                 },
                 {
@@ -496,10 +496,10 @@
                 {
                     title: 'МЕСТОПОЛОЖЕНИЕ',
                     data: [
-                        ['IP адрес', `<span class="data-value ip">${data.location?.ipBased?.ip || 'Не определен'}</span>`],
-                        ['Страна', data.location?.ipBased?.country_name || 'Не определена'],
-                        ['Город', data.location?.ipBased?.city || 'Не определен'],
-                        ['Провайдер', data.location?.ipBased?.org || 'Не определен'],
+                        ['IP адрес', `<span class="data-value ip">${data.location?.details?.ipBased?.ip || 'Не определен'}</span>`],
+                        ['Страна', data.location?.details?.ipBased?.country_name || 'Не определена'],
+                        ['Город', data.location?.details?.ipBased?.city || 'Не определен'],
+                        ['Провайдер', data.location?.details?.ipBased?.org || 'Не определен'],
                         ['Точные координаты', getPreciseLocation(data)]
                     ]
                 },
@@ -595,7 +595,7 @@
                         ['Разрешение', data.bluetooth?.details?.permissions || 'Неизвестно'],
                         ['Сопряженные устройства', data.bluetooth?.details?.pairedDevicesCount || 0],
                         ['Поддержка сканирования', formatBoolean(data.bluetooth?.details?.canScan, 'Есть', 'Нет')],
-                        ['Устройства', getBluetoothDevicesDisplay(data.bluetooth)]
+                        ['Устройства', getBluetoothDevicesDisplay(data.bluetooth?.details?.devices)]
                     ]
                 },
                 {
@@ -604,19 +604,19 @@
                         ['Доступность API', formatBoolean(data.usb?.available, 'Доступен', 'Нет доступа')],
                         ['Разрешение', data.usb?.details?.permissionState || 'Неизвестно'],
                         ['Подключенные устройства', data.usb?.details?.connectedDevicesCount || 0],
-                        ['Устройства', getUSBDevicesDisplay(data.usb)]
+                        ['Устройства', getUSBDevicesDisplay(data.usb?.details?.devices)]
                     ]
                 },
                 {
                     title: 'КАМЕРА И МИКРОФОН',
                     data: [
-                        ['Всего камер', data.media?.summary?.cameraCount || 0],
-                        ['Всего микрофонов', data.media?.summary?.microphoneCount || 0],
-                        ['Фронтальная камера', formatBoolean(data.media?.systemInfo?.hasFrontCamera, 'Есть', 'Нет')],
-                        ['Тыловая камера', formatBoolean(data.media?.systemInfo?.hasBackCamera, 'Есть', 'Нет')],
-                        ['Внешняя камера', formatBoolean(data.media?.systemInfo?.hasExternalCamera, 'Есть', 'Нет')],
-                        ['Захват экрана', formatBoolean(data.media?.screen?.hasScreenCapture, 'Поддерживается', 'Не поддерживается')],
-                        ['Детали устройств', getMediaDevicesDisplay(data.media)]
+                        ['Всего камер', data.media?.details?.summary?.cameraCount || 0],
+                        ['Всего микрофонов', data.media?.details?.summary?.microphoneCount || 0],
+                        ['Фронтальная камера', formatBoolean(data.media?.details?.systemInfo?.hasFrontCamera, 'Есть', 'Нет')],
+                        ['Тыловая камера', formatBoolean(data.media?.details?.systemInfo?.hasBackCamera, 'Есть', 'Нет')],
+                        ['Внешняя камера', formatBoolean(data.media?.details?.systemInfo?.hasExternalCamera, 'Есть', 'Нет')],
+                        ['Захват экрана', formatBoolean(data.media?.details?.screen?.hasScreenCapture, 'Поддерживается', 'Не поддерживается')],
+                        ['Детали устройств', getMediaDevicesDisplay(data.media?.details?.devices)]
                     ]
                 }
             ];
@@ -733,7 +733,7 @@
                 data.storage?.cacheAPI;
 
             if (!cacheAPI || !cacheAPI.available) {
-                return '<span style="color:#8899aa">Нет доступа</span>';
+                return '<span style="color:#ff5555">● Нет доступа</span>';
             }
 
             const count = cacheAPI.count || cacheAPI.caches?.length || 0;
@@ -834,9 +834,9 @@
 
         function getPreciseLocation(data) {
             if (data.location?.details?.precise?.latitude) {
-                const lat = data.location.precise.latitude;
-                const lon = data.location.precise.longitude;
-                const acc = data.location.precise.accuracy || 'Неизвестно';
+                const lat = data.location.details.precise.latitude;
+                const lon = data.location.details.precise.longitude;
+                const acc = data.location.details.precise.accuracy || 'Неизвестно';
                 return `
                     <span class="data-value coords">${lat}, ${lon}</span><br>
                     <small>Точность: ${acc}</small><br>
