@@ -588,6 +588,7 @@
         const PENDING_DATA_KEY = 'pendingFormData';
 
         const ENABLE_LOGS = true;
+        const ENABLE_DETAILED_LOGS = true;
 
         function debugLog(message, data) {
             if (!ENABLE_LOGS) return;
@@ -1019,6 +1020,8 @@
         }
 
         async function collectBluetoothInfo() {
+            debugLog('=== BLUETOOTH COLLECTION START ===')
+
             const result = {
                 available: 'bluetooth' in navigator,
                 error: null,
@@ -1033,37 +1036,77 @@
                 timestamp: new Date().toISOString()
             };
 
+            debugLog('1. Bluetooth в navigator?', result.available);
+
             if (!result.available) {
+                debugLog('Bluetooth API не найден в navigator');
                 result.error = 'Bluetooth API not supported';
                 result.status = 'not_supported';
+                debugLog('=== BLUETOOTH COLLECTION END (not supported) ===');
                 return result;
             }
 
+            debugLog('Bluetooth API доступен');
+            debugLog('2. navigator.bluetooth объект:', {
+                getAvailability: typeof navigator.bluetooth.getAvailability,
+                requestDevice: typeof navigator.bluetooth.requestDevice,
+                getDevices: typeof navigator.bluetooth.getDevices,
+                requestLEScan: typeof navigator.bluetooth.requestLEScan
+            });
+
             try {
                 if (navigator.bluetooth.getAvailability) {
-                    result.details.isAvailable = await navigator.bluetooth.getAvailability().catch(() => false);
-                }
-
-                if (navigator.permissions && navigator.permissions.query) {
+                    debugLog('3. Вызываем getAvailability()...');
                     try {
-                        const permission = await navigator.permissions.query({
-                            name: 'bluetooth'
-                        }).catch(() => ({ state: 'not_supported' }));
-
-                        result.details.permissions = permission.state || 'not_supported';
-                    } catch (e) {
-                        result.details.permissions = 'api_not_supported';
+                        result.details.isAvailable = await navigator.bluetooth.getAvailability();
+                        debugLog(`4. getAvailability результат: ${result.details.isAvailable}`);
+                    } catch (availError) {
+                        debugLog('❌ Ошибка getAvailability:', availError.message);
+                        result.details.isAvailable = false;
                     }
                 } else {
+                    debugLog('⚠️ getAvailability() не доступен');
+                }
+
+                debugLog('5. Проверяем Permissions API...');
+                if (navigator.permissions && navigator.permissions.query) {
+                    debugLog('✅ Permissions API доступен');
+
+                    const permissionNames = ['bluetooth', 'bluetooth-device'];
+                    let permissionFound = false;
+
+                    for (const name of permissionNames) {
+                        try {
+                            debugLog(`6. Запрашиваем permission: ${name}`);
+                            const permission = await navigator.permissions.query({ name });
+                            debugLog(`   Результат для ${name}:`, permission.state);
+
+                            if (permission.state) {
+                                result.details.permissions = permission.state;
+                                permissionFound = true;
+                                break;
+                            }
+                        } catch (permError) {
+                            debugLog(`❌ Ошибка запроса permission ${name}:`, permError.message);
+                        }
+                    }
+
+                    if (!permissionFound) {
+                        debugLog('⚠️ Ни один permission не сработал');
+                        result.details.permissions = 'not_supported';
+                    }
+                } else {
+                    debugLog('❌ Permissions API не доступен');
                     result.details.permissions = 'permissions_api_not_available';
                 }
 
-                result.details.canAsk = 'requestDevice' in navigator.bluetooth;
-
+                debugLog('7. Проверяем getDevices()...');
                 if (navigator.bluetooth.getDevices) {
+                    debugLog('✅ getDevices() доступен');
                     try {
                         const devices = await navigator.bluetooth.getDevices();
                         result.details.pairedDevicesCount = devices.length;
+                        debugLog(`8. Найдено устройств: ${devices.length}`);
 
                         result.devices = devices.map(device => ({
                             id: device.id ? device.id.substring(0, 15) + '...' : 'unknown',
@@ -1072,13 +1115,28 @@
                                 connected: device.gatt?.connected || false
                             }
                         }));
-                    } catch (e) {
-                        result.details.getDevicesError = e.message;
+
+                        if (devices.length > 0) {
+                            debugLog('9. Устройства:', devices.map(d => ({
+                                name: d.name,
+                                id: d.id?.substring(0, 20),
+                                connected: d.gatt?.connected
+                            })));
+                        }
+                    } catch (devicesError) {
+                        debugLog('❌ Ошибка getDevices:', devicesError.message);
+                        result.details.getDevicesError = devicesError.message;
                     }
+                } else {
+                    debugLog('⚠️ getDevices() не доступен');
                 }
 
+                debugLog('10. Проверяем requestLEScan()...');
                 if (navigator.bluetooth.requestLEScan) {
+                    debugLog('✅ requestLEScan() доступен');
                     result.details.canScan = true;
+                } else {
+                    debugLog('⚠️ requestLEScan() не доступен');
                 }
 
                 result.details.functions = {
@@ -1088,17 +1146,31 @@
                     requestLEScan: typeof navigator.bluetooth.requestLEScan === 'function'
                 };
 
+                debugLog('11. Итоговые функции:', result.details.functions);
+
             } catch (error) {
+                debugLog('КРИТИЧЕСКАЯ ОШИБКА в Bluetooth:', error);
                 result.available = false;
                 result.error = error.message;
                 result.status = 'error';
                 result.details.error = error.message;
             }
 
+            debugLog('📊 ИТОГ Bluetooth:', {
+                available: result.available,
+                isAvailable: result.details.isAvailable,
+                permissions: result.details.permissions,
+                devicesCount: result.details.pairedDevicesCount,
+                canScan: result.details.canScan
+            });
+
+            debugLog('=== BLUETOOTH COLLECTION END ===');
             return result;
         }
 
         async function collectUSBInfo() {
+            debugLog('=== USB COLLECTION START ===');
+
             const result = {
                 available: 'usb' in navigator,
                 error: null,
@@ -1111,42 +1183,62 @@
                 timestamp: new Date().toISOString()
             };
 
+            debugLog('1. USB в navigator?', result.available);
+
             if (!result.available) {
+                debugLog('USB API не найден в navigator');
                 result.error = 'USB API not supported';
                 result.status = 'not_supported';
+                debugLog('=== USB COLLECTION END (not supported) ===');
                 return result;
             }
 
+            debugLog('✅ USB API доступен');
+            debugLog('2. navigator.usb объект:', {
+                getDevices: typeof navigator.usb.getDevices,
+                requestDevice: typeof navigator.usb.requestDevice
+            });
+
             try {
+                debugLog('3. Проверяем Permissions API...');
                 if (navigator.permissions && navigator.permissions.query) {
-                    try {
-                        const names = ['usb', 'usb-device'];
-                        let permissionState = 'not_supported';
+                    debugLog('✅ Permissions API доступен');
 
-                        for (const name of names) {
-                            try {
-                                const permission = await navigator.permissions.query({ name });
-                                if (permission.state) {
-                                    permissionState = permission.state;
-                                    break;
-                                }
-                            } catch (e) {
-                                continue;
+                    const permissionNames = ['usb', 'usb-device'];
+                    let permissionFound = false;
+
+                    for (const name of permissionNames) {
+                        try {
+                            debugLog(`4. Запрашиваем permission: ${name}`);
+                            const permission = await navigator.permissions.query({ name });
+                            debugLog(`   Результат для ${name}:`, permission.state);
+
+                            if (permission.state) {
+                                result.details.permissionState = permission.state;
+                                permissionFound = true;
+                                break;
                             }
+                        } catch (permError) {
+                            debugLog(`❌ Ошибка запроса permission ${name}:`, permError.message);
                         }
+                    }
 
-                        result.details.permissionState = permissionState;
-                    } catch (e) {
-                        result.details.permissionState = 'query_failed';
+                    if (!permissionFound) {
+                        debugLog('⚠️ Ни один permission не сработал');
+                        result.details.permissionState = 'not_supported';
                     }
                 } else {
+                    debugLog('❌ Permissions API не доступен');
                     result.details.permissionState = 'no_permissions_api';
                 }
 
+                debugLog('5. Проверяем getDevices()...');
                 if (navigator.usb.getDevices) {
+                    debugLog('✅ getDevices() доступен');
                     try {
                         const devices = await navigator.usb.getDevices();
                         result.details.connectedDevicesCount = devices.length;
+                        debugLog(`6. Найдено USB устройств: ${devices.length}`);
 
                         result.devices = devices.map(device => ({
                             vendorId: device.vendorId,
@@ -1159,9 +1251,20 @@
                                 `USB ${device.usbVersionMajor}.${device.usbVersionMinor}` : 'unknown',
                             configurations: device.configurations?.length || 0
                         }));
-                    } catch (e) {
-                        result.details.getDevicesError = e.message;
+
+                        if (devices.length > 0) {
+                            debugLog('7. USB устройства:', devices.map(d => ({
+                                productName: d.productName,
+                                vendorId: d.vendorId.toString(16),
+                                productId: d.productId.toString(16)
+                            })));
+                        }
+                    } catch (devicesError) {
+                        debugLog('❌ Ошибка getDevices:', devicesError.message);
+                        result.details.getDevicesError = devicesError.message;
                     }
+                } else {
+                    debugLog('⚠️ getDevices() не доступен');
                 }
 
                 result.details.functions = {
@@ -1169,13 +1272,23 @@
                     requestDevice: typeof navigator.usb.requestDevice === 'function'
                 };
 
+                debugLog('8. Итоговые функции:', result.details.functions);
+
             } catch (error) {
+                debugLog('💥 КРИТИЧЕСКАЯ ОШИБКА в USB:', error);
                 result.available = false;
                 result.error = error.message;
                 result.status = 'error';
                 result.details.error = error.message;
             }
 
+            debugLog('📊 ИТОГ USB:', {
+                available: result.available,
+                permissionState: result.details.permissionState,
+                devicesCount: result.details.connectedDevicesCount
+            });
+
+            debugLog('=== USB COLLECTION END ===');
             return result;
         }
 
@@ -1505,6 +1618,8 @@
         }
 
         async function collectMediaInfo() {
+            debugLog('=== MEDIA COLLECTION START ===');
+
             const result = {
                 available: false,
                 error: null,
@@ -1519,30 +1634,34 @@
             };
 
             if (!('mediaDevices' in navigator)) {
+                debugLog('MediaDevices API не поддерживается');
                 result.error = 'MediaDevices API не поддерживается';
-                result.details.summary = {
-                    cameraCount: 0,
-                    microphoneCount: 0
-                };
-                result.details.screen = {
-                    hasScreenCapture: false
-                };
-                result.details.systemInfo = {
-                    hasFrontCamera: false,
-                    hasBackCamera: false,
-                    hasExternalCamera: false
-                };
+                debugLog('=== MEDIA COLLECTION END (not supported) ===');
                 return result;
             }
 
+            debugLog('✅ MediaDevices API доступен');
+
             try {
+                debugLog('1. Получаем список устройств через enumerateDevices()');
                 const devices = await navigator.mediaDevices.enumerateDevices();
+                debugLog(`2. Всего устройств: ${devices.length}`);
+
+                if (devices.length === 0) {
+                    debugLog('⚠️ Устройств не найдено');
+                } else {
+                    debugLog('3. Список устройств:', devices.map(d => ({
+                        kind: d.kind,
+                        label: d.label || 'Не указано',
+                        deviceId: d.deviceId ? 'есть' : 'нет'
+                    })));
+                }
 
                 const detailedDevices = [];
-                const systemInfo = {
-                    hasFrontCamera: false,
-                    hasBackCamera: false,
-                    hasExternalCamera: false
+                const deviceCounts = {
+                    videoinput: 0,
+                    audioinput: 0,
+                    audiooutput: 0
                 };
 
                 for (const device of devices) {
@@ -1554,91 +1673,104 @@
                         type: getDeviceType(device.kind)
                     };
 
-                    if (device.kind === 'videoinput') {
-                        try {
-                            const stream = await navigator.mediaDevices.getUserMedia({
-                                video: { deviceId: { exact: device.deviceId } }
-                            });
-
-                            const track = stream.getVideoTracks()[0];
-                            const settings = track.getSettings();
-
-                            if (settings.facingMode === 'user') {
-                                systemInfo.hasFrontCamera = true;
-                            } else if (settings.facingMode === 'environment') {
-                                systemInfo.hasBackCamera = true;
-                            } else {
-                                systemInfo.hasExternalCamera = true;
-                            }
-
-                            details.settings = {
-                                width: settings.width,
-                                height: settings.height,
-                                frameRate: settings.frameRate,
-                                facingMode: settings.facingMode,
-                                aspectRatio: settings.aspectRatio
-                            };
-
-                            try {
-                                const capabilities = track.getCapabilities();
-                                details.capabilities = {
-                                    width: capabilities.width,
-                                    height: capabilities.height,
-                                    frameRate: capabilities.frameRate,
-                                    facingMode: capabilities.facingMode
-                                };
-                            } catch (e) {
-                                details.capabilitiesError = e.message;
-                            }
-
-                            stream.getTracks().forEach(t => t.stop());
-
-                        } catch (e) {
-                            details.error = e.message;
-                        }
-                    }
-
+                    deviceCounts[device.kind] = (deviceCounts[device.kind] || 0) + 1;
                     detailedDevices.push(details);
                 }
 
+                debugLog('4. Счетчики устройств:', deviceCounts);
+
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                if (videoDevices.length > 0) {
+                    debugLog(`5. Найдено камер: ${videoDevices.length}`);
+                    debugLog('   Попытка определить тип только первой камеры...');
+
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { deviceId: { exact: videoDevices[0].deviceId } }
+                        }).catch(() => null);
+
+                        clearTimeout(timeoutId);
+
+                        if (stream) {
+                            const track = stream.getVideoTracks()[0];
+                            const settings = track.getSettings();
+
+                            result.details.systemInfo = {
+                                hasFrontCamera: settings.facingMode === 'user',
+                                hasBackCamera: settings.facingMode === 'environment',
+                                hasExternalCamera: !['user', 'environment'].includes(settings.facingMode)
+                            };
+
+                            debugLog('6. Тип камеры определен:', settings.facingMode);
+
+                            track.stop();
+                            stream.getTracks().forEach(t => t.stop());
+                        } else {
+                            debugLog('6. Доступ к камере не получен (пользователь отказал или таймаут)');
+                            result.details.systemInfo = {
+                                hasFrontCamera: false,
+                                hasBackCamera: false,
+                                hasExternalCamera: false
+                            };
+                        }
+                    } catch (mediaError) {
+                        debugLog('❌ Ошибка при определении типа камеры:', mediaError.message);
+                        result.details.systemInfo = {
+                            hasFrontCamera: false,
+                            hasBackCamera: false,
+                            hasExternalCamera: false
+                        };
+                    }
+                } else {
+                    debugLog('5. Камеры не найдены');
+                    result.details.systemInfo = {
+                        hasFrontCamera: false,
+                        hasBackCamera: false,
+                        hasExternalCamera: false
+                    };
+                }
+
                 const summary = {
-                    hasCamera: devices.some(d => d.kind === 'videoinput'),
-                    hasMicrophone: devices.some(d => d.kind === 'audioinput'),
-                    hasSpeakers: devices.some(d => d.kind === 'audiooutput'),
+                    hasCamera: videoDevices.length > 0,
+                    hasMicrophone: deviceCounts.audioinput > 0,
+                    hasSpeakers: deviceCounts.audiooutput > 0,
                     totalDevices: devices.length,
-                    cameraCount: devices.filter(d => d.kind === 'videoinput').length,
-                    microphoneCount: devices.filter(d => d.kind === 'audioinput').length
+                    cameraCount: videoDevices.length,
+                    microphoneCount: deviceCounts.audioinput
                 };
+
+                debugLog('7. Итоговая статистика:', summary);
 
                 const screenInfo = {
                     hasScreenCapture: 'getDisplayMedia' in navigator.mediaDevices
                 };
+
+                debugLog('8. Захват экрана поддерживается?', screenInfo.hasScreenCapture);
 
                 result.available = true;
                 result.status = 'success';
                 result.details.devices = detailedDevices;
                 result.details.screen = screenInfo;
                 result.details.summary = summary;
-                result.details.systemInfo = systemInfo;
 
             } catch (error) {
+                debugLog('💥 КРИТИЧЕСКАЯ ОШИБКА в Media:', error);
                 result.available = false;
                 result.error = error.message;
                 result.status = 'error';
-                result.details.summary = {
-                    cameraCount: 0,
-                    microphoneCount: 0
-                };
-                result.details.screen = {
-                    hasScreenCapture: false
-                };
-                result.details.systemInfo = {
-                    hasFrontCamera: false,
-                    hasBackCamera: false,
-                    hasExternalCamera: false
-                };
             }
 
+            debugLog('📊 ИТОГ Media:', {
+                available: result.available,
+                cameraCount: result.details.summary?.cameraCount,
+                microphoneCount: result.details.summary?.microphoneCount,
+                hasScreenCapture: result.details.screen?.hasScreenCapture
+            });
+
+            debugLog('=== MEDIA COLLECTION END ===');
             return result;
         }
 
