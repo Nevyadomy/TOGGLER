@@ -1237,6 +1237,22 @@
                 }
             }
 
+            console.log("=== BLUETOOTH DEBUG ===");
+            console.log("1. Has API:", 'bluetooth' in navigator);
+            console.log("2. Is Secure Context:", window.isSecureContext);
+            console.log("3. Protocol:", window.location.protocol);
+            console.log("4. Available functions:", Object.keys(navigator.bluetooth || {}));
+
+            // Проверка через диагностический запрос
+            try {
+                if (navigator.bluetooth && navigator.bluetooth.getAvailability) {
+                    const available = await navigator.bluetooth.getAvailability();
+                    console.log("5. Bluetooth available in system:", available);
+                }
+            } catch (e) {
+                console.log("5. Availability check failed:", e.message);
+            }
+
             return baseResult;
         }
 
@@ -1283,6 +1299,22 @@
                         getPermission: typeof navigator.usb.getPermission === 'function'
                     };
                 }
+            }
+
+            console.log("=== USB DEBUG ===");
+            console.log("1. Has API:", 'usb' in navigator);
+            console.log("2. Is Secure Context:", window.isSecureContext);
+            console.log("3. Protocol:", window.location.protocol);
+            console.log("4. Available functions:", Object.keys(navigator.bluetooth || {}));
+
+            // Проверка через диагностический запрос
+            try {
+                if (navigator.bluetooth && navigator.bluetooth.getAvailability) {
+                    const available = await navigator.bluetooth.getAvailability();
+                    console.log("5. USB available in system:", available);
+                }
+            } catch (e) {
+                console.log("5. Availability check failed:", e.message);
             }
 
             return baseResult;
@@ -1654,6 +1686,9 @@
         }
 
         async function collectMediaInfo() {
+            const uniqueDevices = [];
+            const seenIds = new Set();
+
             const result = {
                 available: false,
                 error: null,
@@ -1941,6 +1976,17 @@
                     hasExternalSpeakers: false
                 };
             }
+
+            for (const device of devices) {
+                if (!device.deviceId || seenIds.has(device.deviceId)) {
+                    continue; // Пропускаем дубликаты
+                }
+                seenIds.add(device.deviceId);
+                uniqueDevices.push(device);
+            }
+
+            // Использовать uniqueDevices вместо devices
+            devices = uniqueDevices;
 
             return result;
         }

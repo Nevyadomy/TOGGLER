@@ -497,7 +497,7 @@
                     title: 'МЕСТОПОЛОЖЕНИЕ',
                     data: [
                         ['IP адрес', `<span class="data-value ip">${data.location?.details?.ipBased?.ip || 'Не определен'}</span>`],
-                        ['Страна', data.location?.details?.ipBased?.country_name || 'Не определена'],
+                        ['Страна', data.location?.details?.ipBased?.country || 'Не определена'],
                         ['Город', data.location?.details?.ipBased?.city || 'Не определен'],
                         ['Провайдер', data.location?.details?.ipBased?.org || 'Не определен'],
                         ['Точные координаты', getPreciseLocation(data)]
